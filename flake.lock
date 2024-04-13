@@ -2,16 +2,18 @@
   "nodes": {
     "nixpkgs": {
       "locked": {
-        "lastModified": 1712420723,
-        "narHash": "sha256-VnG0Eu394Ga2FCe8Q66m6OEQF8iAqjDYsjmtl+N2omk=",
-        "owner": "NixOS",
+        "lastModified": 1712980729,
+        "narHash": "sha256-b6teOD+TmevAQ373XaY9rHwuV+X+N1PWU0jIDGksJ0E=",
+        "owner": "cleverca22",
         "repo": "nixpkgs",
-        "rev": "9e7f26f82acb057498335362905fde6fea4ca50a",
+        "rev": "7cc0bd6a42fcbf742b3e7be90d0990fb4ccbe369",
         "type": "github"
       },
       "original": {
-        "id": "nixpkgs",
-        "type": "indirect"
+        "owner": "cleverca22",
+        "ref": "riscv-uclibc",
+        "repo": "nixpkgs",
+        "type": "github"
       }
     },
     "root": {
