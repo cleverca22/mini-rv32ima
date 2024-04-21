@@ -29,6 +29,11 @@ static void MiniSleep();
 static int IsKBHit();
 static int ReadKBByte();
 
+struct mem_entry {
+  uint64_t address;
+  uint64_t size;
+};
+
 // This is the functionality we want to override in the emulator.
 //  think of this as the way the emulator's processor is connected to the outside world.
 #define MINIRV32WARN( x... ) printf( x );
@@ -217,11 +222,19 @@ restart:
                             fdt_setprop_string(v_fdt, chosen, "bootargs", kernel_command_line);
                           }
                           if (initrd_len > 0) {
-                            uint32_t start = htonl(initrd_addr + 0x80000000);
-                            uint32_t end = htonl(initrd_addr + initrd_len + 0x80000000);
-                            fdt_setprop(v_fdt, chosen, "linux,initrd-start", &start, 4);
-                            fdt_setprop(v_fdt, chosen, "linux,initrd-end", &end, 4);
+                            uint32_t start = 0x80000000 + initrd_addr;
+                            uint32_t end = start + initrd_len;
+                            fdt_setprop_u32(v_fdt, chosen, "linux,initrd-start", start);
+                            fdt_setprop_u32(v_fdt, chosen, "linux,initrd-end", end);
                           }
+                        }
+                        int memory = fdt_path_offset(v_fdt, "/memory@80000000");
+                        if (memory > 0) {
+                          struct mem_entry memmap[] = {
+                            { .address = cpu_to_fdt64(0x80000000), .size = cpu_to_fdt64(ram_amt - (16*1024)) },
+                          };
+                          printf("0x%lx 0x%lx\n", memmap[0].address, memmap[0].size);
+                          fdt_setprop(v_fdt, memory, "reg", (void*) memmap, sizeof(memmap));
                         }
 #endif
 		}
