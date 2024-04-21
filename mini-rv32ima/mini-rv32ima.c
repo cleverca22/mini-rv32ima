@@ -213,7 +213,9 @@ restart:
                           puts("ERROR: no chosen node in fdt");
                           return -1;
                         } else {
-                          fdt_setprop_string(v_fdt, chosen, "bootargs", kernel_command_line);
+                          if (kernel_command_line) {
+                            fdt_setprop_string(v_fdt, chosen, "bootargs", kernel_command_line);
+                          }
                           if (initrd_len > 0) {
                             uint32_t start = htonl(initrd_addr + 0x80000000);
                             uint32_t end = htonl(initrd_addr + initrd_len + 0x80000000);

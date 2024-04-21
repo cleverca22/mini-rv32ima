@@ -8,5 +8,6 @@ stdenv.mkDerivation {
     mkdir -p $out/bin
     cp mini-rv32ima{,.tiny,.dtb} $out/bin/
   '';
+  # dontStrip = true;
   buildInputs = [ dtc ];
 }
