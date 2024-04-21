@@ -23,6 +23,62 @@
         nod /dev/console 0600 0 0 c 5 1
         EOF
       '';
+      shrunkenBinaries = self.runCommand "shrunken" {
+        inputs = [
+          (self.pkgsCross.riscv32-nommu.busybox.override {
+            enableMinimal = true;
+            extraConfig = ''
+              CONFIG_PING n
+              CONFIG_PING6 n
+              CONFIG_TRACEROUTE n
+              CONFIG_TRACEROUTE6 n
+              CONFIG_UDHCPC n
+              CONFIG_UDHCPD n
+              CONFIG_DHCPRELAY n
+              CONFIG_DUMPLEASES n
+              CONFIG_UDHCPC6 n
+              CONFIG_MKTEMP n
+              CONFIG_HUSH y
+              CONFIG_HUSH_EXPORT y
+              CONFIG_MOUNT y
+              CONFIG_ECHO y
+              # CONFIG_SH_IS_HUSH y
+              CONFIG_SH_IS_NONE n
+              CONFIG_SHELL_HUSH y
+              CONFIG_LS y
+              CONFIG_DF y
+              CONFIG_DU y
+              CONFIG_ENV y
+              CONFIG_SORT y
+              CONFIG_HEAD y
+              CONFIG_TAIL y
+              CONFIG_WC y
+              CONFIG_DMESG y
+              CONFIG_REBOOT y
+              CONFIG_POWEROFF y
+              CONFIG_CAT y
+              CONFIG_HUSH_INTERACTIVE y
+            '';
+              #${builtins.readFile ./configs/busybox_config}
+          })
+          #self.boop
+        ];
+      } ''
+        mkdir -pv $out/bin $out/lib
+        for x in $inputs; do
+          echo now for $x
+          cp -va $x/bin/* $out/bin/
+        done
+        for x in $out/bin/*; do
+          if [[ -f $x && ! -L $x ]]; then
+            echo its a file $x
+            ldso=$(patchelf --print-interpreter $x)
+            cp $ldso $out/lib
+            chmod +w $x
+            patchelf --set-interpreter $out/lib/$(basename $ldso) $x
+          fi
+        done
+      '';
       myinit = self.writeTextFile {
         name = "init";
         executable = true;
@@ -63,23 +119,8 @@
       myenv = self.buildEnv {
         name = "env";
         paths = with self; [
-          (self.pkgsCross.riscv32-nommu.busybox.override {
-            enableMinimal = false;
-            extraConfig = ''
-              CONFIG_PING n
-              CONFIG_PING6 n
-              CONFIG_TRACEROUTE n
-              CONFIG_TRACEROUTE6 n
-              CONFIG_UDHCPC n
-              CONFIG_UDHCPD n
-              CONFIG_DHCPRELAY n
-              CONFIG_DUMPLEASES n
-              CONFIG_UDHCPC6 n
-              CONFIG_MKTEMP n
-            '';
-          })
           self.myinit
-          #self.boop
+          shrunkenBinaries
         ];
       };
       myinitrd = self.makeInitrd {
@@ -149,7 +190,7 @@
     pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
   in {
     packages = {
-      inherit (pkgs) mini-rv32ima rvkernel myinitrd myenv boop myinitrdrename borrowedMkCpio console;
+      inherit (pkgs) mini-rv32ima rvkernel myinitrd myenv boop myinitrdrename borrowedMkCpio console shrunkenBinaries;
       cfg = pkgs.rvkernel.configfile;
       default = pkgs.writeShellScriptBin "dotest" ''
         ${pkgs.mini-rv32ima}/bin/mini-rv32ima -f ${pkgs.rvkernel}/Image "$@"
