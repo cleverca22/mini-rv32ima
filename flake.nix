@@ -49,7 +49,7 @@
       os = pkgs.callPackage ./os.nix { inherit nixpkgs; };
     };
     devShells = {
-      kernel = pkgs.rvkernel.overrideDerivation (drv: {
+      kernel = pkgs.pkgsCross.riscv32-nommu.linux.overrideDerivation (drv: {
         nativeBuildInputs = drv.nativeBuildInputs ++ (with pkgs; [ ncurses pkg-config ]);
         makeFlags = drv.makeFlags ++ [ "O=rv32" ];
         shellHook = ''

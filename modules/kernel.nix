@@ -19,8 +19,10 @@ let
       #CRYPTO = no;
       CRYPTO_BLAKE2B = no;
       DRM = no;
-      FB = no;
+      FB = yes;
+      FB_SIMPLE = yes; # simple-framebuffer
       FPU = no;
+      FRAMEBUFFER_CONSOLE = yes; # render text on fb0
       IKCONFIG = no;
       LIBCRC32C = no;
       MMC = no;

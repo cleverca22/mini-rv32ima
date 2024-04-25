@@ -44,4 +44,5 @@ rec {
   busy = test1.config.system.build.busybox;
   kernel = test1.config.system.build.kernel;
   toplevel = test1.config.system.build.toplevel;
+  initrd = test1.config.system.build.initrd;
 }

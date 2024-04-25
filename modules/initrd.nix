@@ -45,6 +45,8 @@ let
       cd /
       mount -t proc proc proc
       mount -t sysfs sys sys
+      mknod /dev/fb0 c 29 0
+      mknod /dev/urandom c 1 9
       echo boop
       #exit 42
       echo hello world
