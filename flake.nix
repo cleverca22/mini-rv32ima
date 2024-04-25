@@ -37,14 +37,14 @@
   let
     pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
   in {
-    packages = {
+    packages = rec {
       inherit (pkgs) mini-rv32ima rvkernel myinitrd myenv boop myinitrdrename borrowedMkCpio console shrunkenBinaries rvkernelWithoutInitrd;
       cfg = pkgs.rvkernel.configfile;
       default = pkgs.writeShellScriptBin "dotest" ''
         ${pkgs.mini-rv32ima}/bin/mini-rv32ima -f ${pkgs.rvkernel}/Image "$@"
       '';
       quicktest = pkgs.writeShellScriptBin "dotest" ''
-        ${pkgs.mini-rv32ima}/bin/mini-rv32ima.dtb -f ${pkgs.rvkernelWithoutInitrd}/Image -i ${pkgs.myinitrd}/initrd
+        ${pkgs.mini-rv32ima}/bin/fat-rv32ima -f ${os.kernel}/Image -i ${os.initrd}/initrd
       '';
       os = pkgs.callPackage ./os.nix { inherit nixpkgs; };
     };
