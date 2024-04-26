@@ -3,6 +3,7 @@
 with lib;
 
 let
+  virtio = true;
   kernel = pkgs.linux_latest.override {
     enableCommonConfig = false;
     autoModules = false;
@@ -60,6 +61,10 @@ let
       HID_SUPPORT = no;
     } // lib.optionalAttrs config.kernel.bake_in_initrd {
       INITRAMFS_SOURCE = freeform "${config.system.build.initrd}/initrd.cpio";
+    } // lib.optionalAttrs virtio {
+      VIRTIO_MENU = yes;
+      VIRTIO_INPUT = yes;
+      VIRTIO_MMIO = yes;
     };
   };
 in {

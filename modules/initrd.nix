@@ -45,6 +45,7 @@ let
       cd /
       mount -t proc proc proc
       mount -t sysfs sys sys
+      mount -t debugfs debugfs sys/kernel/debug/
       mknod /dev/fb0 c 29 0
       mknod /dev/urandom c 1 9
       echo boop

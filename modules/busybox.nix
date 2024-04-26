@@ -29,6 +29,7 @@ let
       CONFIG_REBOOT y
       CONFIG_SHELL_HUSH y
       CONFIG_SH_IS_NONE n
+      CONFIG_SLEEP y
       CONFIG_SORT y
       CONFIG_TAIL y
       CONFIG_TRACEROUTE n

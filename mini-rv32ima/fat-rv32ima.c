@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <assert.h>
 
 #include <libfdt.h>
 
@@ -12,6 +13,7 @@
 
 // #define CNFGOGL
 #define CNFG_IMPLEMENTATION
+// #define CNFGHTTP
 
 #include "rawdraw_sf.h"
 
@@ -55,6 +57,211 @@ uint8_t * ram_image = 0;
 struct MiniRV32IMAState * core;
 const char * kernel_command_line = 0;
 
+typedef struct {
+  // descriptor ring
+  // size, 16 * items
+  // alignment, 16
+  // written by guest
+  uint32_t QueueDescLow;
+  // available ring
+  // size, 6 + (2 * items)
+  // alignment, 2
+  // written by guest, contains index of items in descriptor ring
+  uint32_t QueueDriverLow;
+  // used ring, contains index of descriptor ring items, upon completion
+  // size, 6 + (8 * items)
+  // alignment, 4
+  // written by host
+  uint32_t QueueDeviceLow;
+  uint32_t QueueReady;
+} virtio_queue;
+
+#undef Status
+
+typedef struct {
+  int index;
+  uint32_t reg_base;
+  uint32_t reg_size;
+  void *ram_image;
+  uint32_t selected_features;
+  uint32_t DeviceID;          // 0x08
+  uint32_t DriverFeaturesSel; // 0x24
+  uint32_t QueueSel;          // 0x30
+  uint32_t Status;            // 0x70
+  uint32_t ConfigGeneration;  // 0xfc
+  virtio_queue *queues;
+  int queue_count;
+} virtio_device;
+
+typedef struct {
+  uint64_t addr;
+  uint32_t len;
+  uint16_t flags;
+  uint16_t next;
+} virtio_desc;
+
+static virtio_device *virtio_devices[64];
+static int virtio_count = 0;
+
+
+// i think virtio_mmio in linux, automatically jams the entire queue full with requests for virtio_input_event objects
+// so it has guest ram assigned for every event it can receive at once
+static virtio_device *virtio_create(void *ram_image, uint32_t devid, int queues, uint32_t base, uint32_t size) {
+  virtio_device *dev = malloc(sizeof(virtio_device));
+  bzero(dev, sizeof(virtio_device));
+  dev->index = virtio_count;
+  dev->reg_base = base;
+  dev->reg_size = size;
+  dev->ram_image = ram_image;
+  dev->queues = malloc(sizeof(virtio_queue) * queues);
+  dev->queue_count = queues;
+  virtio_devices[virtio_count] = dev;
+  virtio_count++;
+  return dev;
+}
+
+static uint16_t virtio_ld16(virtio_device *dev, uint32_t addy) {
+  addy -= 0x80000000;
+  return *((uint16_t*)(dev->ram_image + addy));
+}
+
+static uint16_t virtio_avail_ld16(virtio_device *dev, int queue, uint32_t offset) {
+  return virtio_ld16(dev, offset + dev->queues[queue].QueueDriverLow);
+}
+
+static void virtio_dump_desc(const virtio_desc *desc) {
+  printf("\taddr: 0x%lx\n", desc->addr);
+  printf("\tlen: %d\n", desc->len);
+  printf("\tflags: 0x%x\n", desc->flags);
+  printf("\tnext: %d\n", desc->next);
+}
+
+static void virtio_dump_available(virtio_device *dev, int queue) {
+  printf("dumping available queue %d\n", queue);
+  printf("base addr: 0x%x\n", dev->queues[queue].QueueDriverLow);
+  printf("flags: 0x%x\n", virtio_avail_ld16(dev, queue, 0));
+  printf("idx: 0x%x\n", virtio_avail_ld16(dev, queue, 2));
+  for (int n=0; n<64; n++) {
+    uint16_t idx = virtio_avail_ld16(dev, queue, 2 + (n*2));
+    printf("slot[%d]: %d\n", n, idx);
+    if (idx < 64) {
+      virtio_desc *desc = dev->queues[queue].QueueDescLow - 0x80000000 + (idx * 16) + dev->ram_image;
+      virtio_dump_desc(desc);
+    }
+  }
+  printf("used_event: 0x%x\n", virtio_avail_ld16(dev, queue, 2 + (64*2)));
+}
+
+static void virtio_dump_rings(virtio_device *dev) {
+  printf("virtio%d has %d queues\n", dev->index, dev->queue_count);
+  for (int n=0; n<dev->queue_count; n++) {
+    virtio_dump_available(dev, n);
+  }
+}
+
+static void virtio_mmio_store(virtio_device *dev, uint32_t offset, uint32_t val) {
+  printf("virtio%d_store(0x%x, 0x%x) virtio\n", dev->index, offset, val);
+  switch (offset) {
+  case 0x14: // feature select
+    dev->selected_features = val;
+    break;
+  case 0x20: // DriverFeatures
+    switch (dev->DriverFeaturesSel) {
+    case 1:
+      printf("feature high set to 0x%x\n", val);
+      break;
+    }
+    break;
+  case 0x24:
+    dev->DriverFeaturesSel = val;
+    break;
+  case 0x30:
+    dev->QueueSel = val;
+    printf("QueueSel = %d\n", val);
+    break;
+  case 0x44:
+    dev->queues[dev->QueueSel].QueueReady = val;
+    if (val == 1) {
+      printf("virtio%d_queue%d has become ready\n", dev->index, dev->QueueSel);
+    }
+    break;
+  case 0x70: // reset
+    if (val == 0) {
+      puts("virtio reset");
+      dev->Status = 0;
+    }
+    else if (val == 1) puts("VIRTIO_CONFIG_S_ACKNOWLEDGE");
+    else if (val == 2) puts("VIRTIO_CONFIG_S_DRIVER (driver found for dev)");
+    else if (val | 8) {
+      dev->Status |= 8;
+    }
+    break;
+  case 0x80:
+    dev->queues[dev->QueueSel].QueueDescLow = val;
+    break;
+  case 0x84:
+    assert(val == 0);
+    break;
+  case 0x90:
+    dev->queues[dev->QueueSel].QueueDriverLow = val;
+    break;
+  case 0x94:
+    assert(val == 0);
+    break;
+  case 0xa0:
+    dev->queues[dev->QueueSel].QueueDeviceLow = val;
+    break;
+  case 0xa4:
+    assert(val == 0);
+    break;
+  }
+}
+
+static uint32_t virtio_mmio_load(virtio_device *dev, uint32_t offset) {
+  uint32_t ret = 0;
+  switch (offset) {
+  case 0: // magic
+    ret = 0x74726976;
+    break;
+  case 4: // version
+    ret = 2;
+    break;
+  case 8: // device id
+    ret = 18;
+    break;
+  case 0x10: // device features
+    switch (dev->selected_features) {
+    case 1:
+      ret = 1;
+      break;
+    }
+    break;
+  case 0x34: // QueueNumMax
+    switch (dev->QueueSel) {
+    case 0:
+      ret = 64;
+      break;
+    case 1:
+      ret = 64;
+      break;
+    }
+    break;
+  case 0x44:
+    ret = dev->queues[dev->QueueSel].QueueReady;
+    break;
+  case 0x70:
+    ret = dev->Status;
+    break;
+  case 0xfc:
+    // if this changes, there was a race condition between the host and guest, while accessing stuff at 0x100+
+    // the guest will detect 0xfc changing, know it lost the race, and repeat the process
+    ret = dev->ConfigGeneration;
+    break;
+  }
+  printf("virtio%d_load(0x%x) virtio == 0x%x\n", dev->index, offset, ret);
+  return ret;
+}
+
 void HandleKey( int keycode, int bDown ) {
   printf("HandleKey: %d %d\n", keycode, bDown);
 }
@@ -70,6 +277,7 @@ int HandleDestroy() {
 }
 
 static void DumpState( struct MiniRV32IMAState * core, uint8_t * ram_image );
+
 
 int main( int argc, char ** argv )
 {
@@ -252,6 +460,14 @@ restart:
                           fdt_setprop_u32(v_fdt, fb, "stride", 640*4);
                           fdt_setprop_string(v_fdt, fb, "format", "a8r8g8b8");
                         }
+                        if (true) {
+                          virtio_device *virtio_input = virtio_create(ram_image, 18, 2, 0x10010000, 0x200);
+                          int soc = fdt_path_offset(v_fdt, "/soc");
+                          int virtio = fdt_path_offset(v_fdt, "/soc/virtio_input");
+                          fdt_appendprop_addrrange(v_fdt, soc, virtio, "reg", virtio_input->reg_base, virtio_input->reg_size);
+                          //fdt_setprop_u32(v_fdt, virtio, "interrupts", 42);
+                          fdt_setprop_string(v_fdt, virtio, "status", "okay");
+                        }
                         int chosen = fdt_path_offset(v_fdt, "/chosen");
                         if (chosen < 0) {
                           puts("ERROR: no chosen node in fdt");
@@ -334,12 +550,14 @@ restart:
                 uint64_t sinceflip = now - lastflip;
                 if (sinceflip > 16666) {
                   uint64_t start = GetTimeMicroseconds();
-                  CNFGBlitImage(ram_image + (32*1024*1024), 0, 0, 640, 480);
+                  CNFGBlitImage((uint32_t*)(ram_image + (32*1024*1024)), 0, 0, 640, 480);
                   CNFGSwapBuffers();
                   CNFGHandleInput();
                   uint64_t end = GetTimeMicroseconds();
+#if 0
                   uint64_t spent = end - start;
-                  //printf("spent %ld\n", spent);
+                  printf("spent %ld\n", spent);
+#endif
                   lastflip = end;
                 }
 	}
@@ -442,6 +660,9 @@ static int ReadKBByte()
 static void CtrlC()
 {
 	DumpState( core, ram_image);
+    for (int n=0; n<virtio_count; n++) {
+      virtio_dump_rings(virtio_devices[n]);
+    }
 	exit( 0 );
 }
 
@@ -522,23 +743,60 @@ static uint32_t HandleException( uint32_t ir, uint32_t code )
 
 static uint32_t HandleControlStore( uint32_t addy, uint32_t val )
 {
-	if( addy == 0x10000000 ) //UART 8250 / 16550 Data Buffer
-	{
-		printf( "%c", val );
-		fflush( stdout );
-	}
+  if( addy == 0x10000000 ) //UART 8250 / 16550 Data Buffer
+  {
+    printf("%c", val);
+    fflush( stdout );
+  }
+  else if (addy == 0x10000001) {}
+  else if (addy == 0x10000002) {}
+  else if (addy == 0x10000003) {}
+  else if (addy == 0x10000004) {}
+  else {
+    bool handled = false;
+    for (int n=0; n<virtio_count; n++) {
+      uint32_t base = virtio_devices[n]->reg_base;
+      uint32_t size = virtio_devices[n]->reg_size;
+      if ((addy >= base) && (addy < (base+size))) {
+        virtio_mmio_store(virtio_devices[n], addy - base, val);
+        handled = true;
+        break;
+      }
+    }
+    if (!handled) printf("HandleControlStore(0x%x, 0x%x)\n", addy, val);
+  }
 	return 0;
 }
 
 
 static uint32_t HandleControlLoad( uint32_t addy )
 {
+  uint32_t ret = 0;
 	// Emulating a 8250 / 16550 UART
 	if( addy == 0x10000005 )
-		return 0x60 | IsKBHit();
+		ret = 0x60 | IsKBHit();
 	else if( addy == 0x10000000 && IsKBHit() )
-		return ReadKBByte();
-	return 0;
+		ret = ReadKBByte();
+        if (addy == 0x10000000) {}
+        else if (addy == 0x10000001) {}
+        else if (addy == 0x10000002) {}
+        else if (addy == 0x10000003) {}
+        else if (addy == 0x10000005) {}
+        else if (addy == 0x10000006) {}
+  else {
+    bool handled = false;
+    for (int n=0; n<virtio_count; n++) {
+      uint32_t base = virtio_devices[n]->reg_base;
+      uint32_t size = virtio_devices[n]->reg_size;
+      if ((addy >= base) && (addy < (base+size))) {
+        ret = virtio_mmio_load(virtio_devices[n], addy - base);
+        handled = true;
+        break;
+      }
+    }
+    if (!handled) printf("HandleControlLoad(0x%x) == 0x%x\n", addy, ret);
+  }
+	return ret;
 }
 
 static void HandleOtherCSRWrite( uint8_t * image, uint16_t csrno, uint32_t value )
