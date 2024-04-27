@@ -154,13 +154,21 @@ MINIRV32_STEPPROTO
 	if( ( CSR( mip ) & CSR(mie) ) && ( CSR( mstatus ) & 0x8 /*mie*/) )
 	{
           uint32_t ints = CSR( mip ) & CSR(mie);
-          if (ints == 1<<9) {
-            // external interrupt
+          // 2024-04-26 21:51:38 < jrtc27> external, then software, then timer
+          // 2024-04-26 21:51:44 < jrtc27> machine before supervisor
+          // 2024-04-26 21:52:02 < jrtc27> see the mip/mie section in the priv spec
+          // 2024-04-26 21:56:42 < smaeul> see also section 5.1 of the AIA spec
+          if (ints & (1<<11)) { // machine external
+            trap = 0x80000000 | 11;
+            pc -= 4;
+          } else if (ints & (1<<7)) { // machine Timer interrupt.
+            trap = 0x80000000 | 7;
+            pc -= 4;
+          } else if (ints & (1<<9)) { // supervisor external interrupt
             trap = 0x80000009;
             pc -= 4;
-          } else if (ints == 1<<7) {
-            // Timer interrupt.
-            trap = 0x80000007;
+          } else if (ints & (1<<5)) { // supervisor Timer interrupt.
+            trap = 0x80000000 | 5;
             pc -= 4;
           }
         }
