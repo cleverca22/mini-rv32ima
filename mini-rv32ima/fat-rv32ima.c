@@ -34,11 +34,6 @@ static void MiniSleep();
 static int IsKBHit();
 static int ReadKBByte();
 
-struct mem_entry {
-  uint64_t address;
-  uint64_t size;
-};
-
 // This is the functionality we want to override in the emulator.
 //  think of this as the way the emulator's processor is connected to the outside world.
 #define MINIRV32WARN( x... ) printf( x );
@@ -73,24 +68,35 @@ typedef struct {
   // alignment, 4
   // written by host
   uint32_t QueueDeviceLow;
-  uint32_t QueueReady;
+  uint32_t QueueNum;        // 0x38
+  uint32_t QueueReady;      // 0x44
 } virtio_queue;
 
 #undef Status
 
+struct virtio_device;
+
+typedef struct {
+  uint32_t device_type;
+  int queue_count;
+  uint32_t (*config_load)(struct virtio_device *dev, uint32_t offset);
+} virtio_device_type;
+
 typedef struct {
   int index;
+  virtio_device_type *type;
   uint32_t reg_base;
   uint32_t reg_size;
   void *ram_image;
-  uint32_t selected_features;
   uint32_t DeviceID;          // 0x08
+  uint32_t DeviceFeaturesSel; // 0x14
   uint32_t DriverFeaturesSel; // 0x24
   uint32_t QueueSel;          // 0x30
   uint32_t Status;            // 0x70
   uint32_t ConfigGeneration;  // 0xfc
   virtio_queue *queues;
   int queue_count;
+  int config_select, config_subsel;
 } virtio_device;
 
 typedef struct {
@@ -102,14 +108,50 @@ typedef struct {
 
 static virtio_device *virtio_devices[64];
 static int virtio_count = 0;
+static void virtio_raise_irq();
+static void virtio_maybe_clear_irq();
 
+uint32_t virtio_input_config_load(virtio_device *dev, uint32_t offset) {
+  uint32_t ret = 0;
+  switch (dev->config_select) {
+  case 1: // id name
+    const char *str = "fat-rv32ima";
+    ret = str[offset - 8];
+  }
+  return ret;
+}
+
+uint32_t virtio_blk_config_load(virtio_device *dev, uint32_t offset) {
+  uint32_t ret = 0;
+  printf("virtio_blk_config_load(%x, %d)\n", dev, offset);
+  switch (offset) {
+  case 0:
+    ret = 1;
+    break;
+  }
+  return ret;
+}
+
+static const virtio_device_type virtio_input_type = {
+  .device_type = 18,
+  .queue_count = 2,
+  .config_load = virtio_input_config_load,
+};
+
+static const virtio_device_type virtio_blk_type = {
+  .device_type = 2,
+  .queue_count = 1,
+  .config_load = virtio_blk_config_load,
+};
 
 // i think virtio_mmio in linux, automatically jams the entire queue full with requests for virtio_input_event objects
 // so it has guest ram assigned for every event it can receive at once
-static virtio_device *virtio_create(void *ram_image, uint32_t devid, int queues, uint32_t base, uint32_t size) {
+static virtio_device *virtio_create(void *ram_image, virtio_device_type *type, uint32_t base, uint32_t size) {
+  int queues = type->queue_count;
   virtio_device *dev = malloc(sizeof(virtio_device));
   bzero(dev, sizeof(virtio_device));
   dev->index = virtio_count;
+  dev->type = type;
   dev->reg_base = base;
   dev->reg_size = size;
   dev->ram_image = ram_image;
@@ -129,11 +171,24 @@ static uint16_t virtio_avail_ld16(virtio_device *dev, int queue, uint32_t offset
   return virtio_ld16(dev, offset + dev->queues[queue].QueueDriverLow);
 }
 
-static void virtio_dump_desc(const virtio_desc *desc) {
+static void hexdump_ram(void *ram_image, uint32_t addr, uint32_t len) {
+  for (int i=0; i<len; i++) {
+    uint32_t addy = addr + i;
+    if ((i % 16) == 0) printf("0x%x: ", addy);
+
+    uint8_t t = *((uint8_t*)(ram_image + (addy - 0x80000000)));
+    printf("%02x ", t);
+    if ((i % 16) == 15) printf("\n");
+  }
+  printf("\n");
+}
+
+static void virtio_dump_desc(virtio_device *dev, const virtio_desc *desc) {
   printf("\taddr: 0x%lx\n", desc->addr);
   printf("\tlen: %d\n", desc->len);
   printf("\tflags: 0x%x\n", desc->flags);
   printf("\tnext: %d\n", desc->next);
+  hexdump_ram(dev->ram_image, desc->addr, desc->len);
 }
 
 static void virtio_dump_available(virtio_device *dev, int queue) {
@@ -141,14 +196,23 @@ static void virtio_dump_available(virtio_device *dev, int queue) {
   printf("base addr: 0x%x\n", dev->queues[queue].QueueDriverLow);
   printf("flags: 0x%x\n", virtio_avail_ld16(dev, queue, 0));
   printf("idx: 0x%x\n", virtio_avail_ld16(dev, queue, 2));
-  for (int n=0; n<64; n++) {
+  hexdump_ram(dev->ram_image, dev->queues[queue].QueueDescLow, 256);
+  for (int n=0; n<dev->queues[queue].QueueNum; n++) {
     uint16_t idx = virtio_avail_ld16(dev, queue, 2 + (n*2));
-    printf("slot[%d]: %d\n", n, idx);
-    if (idx < 64) {
-      virtio_desc *desc = dev->queues[queue].QueueDescLow - 0x80000000 + (idx * 16) + dev->ram_image;
-      virtio_dump_desc(desc);
+    uint16_t idx_capped = idx % dev->queues[queue].QueueNum;
+    printf("slot[%d]: %d(%d)\n", n, idx, idx_capped);
+    if ((idx > 0) && (idx < 64)) {
+      virtio_desc *desc = dev->queues[queue].QueueDescLow - 0x80000000 + ((idx-1) * 16) + dev->ram_image;
+again:
+      virtio_dump_desc(dev, desc);
+      if (desc->flags & 1) {
+        idx = desc->next;
+        desc = dev->queues[queue].QueueDescLow - 0x80000000 + (idx * 16) + dev->ram_image;
+        goto again;
+      }
     }
   }
+  // VIRTIO_F_EVENT_IDX(29)
   printf("used_event: 0x%x\n", virtio_avail_ld16(dev, queue, 2 + (64*2)));
 }
 
@@ -160,10 +224,10 @@ static void virtio_dump_rings(virtio_device *dev) {
 }
 
 static void virtio_mmio_store(virtio_device *dev, uint32_t offset, uint32_t val) {
-  printf("virtio%d_store(0x%x, 0x%x) virtio\n", dev->index, offset, val);
+  printf("virtio%d_store(0x%x, 0x%x)\n", dev->index, offset, val);
   switch (offset) {
-  case 0x14: // feature select
-    dev->selected_features = val;
+  case 0x14:
+    dev->DeviceFeaturesSel = val;
     break;
   case 0x20: // DriverFeatures
     switch (dev->DriverFeaturesSel) {
@@ -179,40 +243,57 @@ static void virtio_mmio_store(virtio_device *dev, uint32_t offset, uint32_t val)
     dev->QueueSel = val;
     printf("QueueSel = %d\n", val);
     break;
+  case 0x38:
+    dev->queues[dev->QueueSel].QueueNum = val;
+    printf("QueueNum[%d.%d] = %d\n", dev->index, dev->QueueSel, val);
+    break;
   case 0x44:
     dev->queues[dev->QueueSel].QueueReady = val;
     if (val == 1) {
       printf("virtio%d_queue%d has become ready\n", dev->index, dev->QueueSel);
     }
     break;
-  case 0x70: // reset
+  case 0x50: // QueueNotify
+    printf("QueueNotify %d\n", val);
+    virtio_dump_rings(dev);
+    break;
+  case 0x64: // InterruptACK
+    virtio_maybe_clear_irq();
+    break;
+  case 0x70:
+    dev->Status = val;
     if (val == 0) {
       puts("virtio reset");
-      dev->Status = 0;
-    }
-    else if (val == 1) puts("VIRTIO_CONFIG_S_ACKNOWLEDGE");
-    else if (val == 2) puts("VIRTIO_CONFIG_S_DRIVER (driver found for dev)");
-    else if (val | 8) {
-      dev->Status |= 8;
+    } else {
+      if (val & 1) puts("VIRTIO_CONFIG_S_ACKNOWLEDGE");
+      if (val & 2) puts("VIRTIO_CONFIG_S_DRIVER (driver found for dev)");
+      if (val & 4) puts("VIRTIO_CONFIG_S_DRIVER_OK");
+      if (val & 8) puts("VIRTIO_CONFIG_S_FEATURES_OK");
     }
     break;
   case 0x80:
     dev->queues[dev->QueueSel].QueueDescLow = val;
     break;
-  case 0x84:
+  case 0x84: // QueueDescHigh
     assert(val == 0);
     break;
   case 0x90:
     dev->queues[dev->QueueSel].QueueDriverLow = val;
     break;
-  case 0x94:
+  case 0x94: // QueueDriverHigh
     assert(val == 0);
     break;
   case 0xa0:
     dev->queues[dev->QueueSel].QueueDeviceLow = val;
     break;
-  case 0xa4:
+  case 0xa4: // QueueDeviceHigh
     assert(val == 0);
+    break;
+  case 0x100: // virtio-input config select
+    dev->config_select = val;
+    break;
+  case 0x101: // virtio-input config sub select
+    dev->config_subsel = val;
     break;
   }
 }
@@ -220,17 +301,17 @@ static void virtio_mmio_store(virtio_device *dev, uint32_t offset, uint32_t val)
 static uint32_t virtio_mmio_load(virtio_device *dev, uint32_t offset) {
   uint32_t ret = 0;
   switch (offset) {
-  case 0: // magic
+  case 0: // MagicValue
     ret = 0x74726976;
     break;
-  case 4: // version
+  case 4: // Version
     ret = 2;
     break;
-  case 8: // device id
-    ret = 18;
+  case 8: // DeviceID
+    ret = dev->type->device_type;
     break;
-  case 0x10: // device features
-    switch (dev->selected_features) {
+  case 0x10: // DeviceFeatures
+    switch (dev->DeviceFeaturesSel) {
     case 1:
       ret = 1;
       break;
@@ -257,9 +338,38 @@ static uint32_t virtio_mmio_load(virtio_device *dev, uint32_t offset) {
     // the guest will detect 0xfc changing, know it lost the race, and repeat the process
     ret = dev->ConfigGeneration;
     break;
+  case 0x102:
+    switch (dev->config_select) {
+    case 1: // id name
+      ret = strlen("fat-rv32ima");
+      break;
+    case 0x11:
+      // config_subsel is a type like EV_KEY
+      // value returned at 0x108, should be a bitmap, of every code (KEY_C or REL_X) the device supports
+    case 0x12:
+      // absolute pointer space
+      // linux will only read it, if the above bitfield reports a EV_ABS type
+      // it will then check for each bit (such as 1<<ABS_X), and query the range for that axis
+    default:
+      printf("size read for unsupported 0x%x.0x%x\n", dev->config_select, dev->config_subsel);
+      break;
+    }
   }
-  printf("virtio%d_load(0x%x) virtio == 0x%x\n", dev->index, offset, ret);
+  if ( (offset >= 0x100) && (offset < (0x100 + 128))) {
+    int newoff = offset - 0x100;
+    ret = dev->type->config_load(dev, newoff);
+  }
+  printf("virtio%d_load(0x%x) == 0x%x\n", dev->index, offset, ret);
   return ret;
+}
+
+static void virtio_maybe_clear_irq() {
+  // TODO, go over every virtio device and check if the condition is actually clear
+  clear_hart_irq(core, 9);
+}
+
+static void virtio_raise_irq() {
+  raise_hart_irq(core, 9);
 }
 
 void HandleKey( int keycode, int bDown ) {
@@ -461,7 +571,7 @@ restart:
                           fdt_setprop_string(v_fdt, fb, "format", "a8r8g8b8");
                         }
                         if (true) {
-                          virtio_device *virtio_input = virtio_create(ram_image, 18, 2, 0x10010000, 0x200);
+                          virtio_device *virtio_input = virtio_create(ram_image, &virtio_blk_type, 0x10010000, 0x200);
                           int soc = fdt_path_offset(v_fdt, "/soc");
                           int virtio = fdt_path_offset(v_fdt, "/soc/virtio_input");
                           fdt_appendprop_addrrange(v_fdt, soc, virtio, "reg", virtio_input->reg_base, virtio_input->reg_size);
@@ -485,11 +595,6 @@ restart:
                         }
                         int memory = fdt_path_offset(v_fdt, "/memory@80000000");
                         if (memory > 0) {
-                          struct mem_entry memmap[] = {
-                            { .address = cpu_to_fdt64(0x80000000), .size = cpu_to_fdt64(ram_amt - (16*1024)) },
-                          };
-                          printf("0x%lx 0x%lx\n", memmap[0].address, memmap[0].size);
-                          //fdt_setprop(v_fdt, memory, "reg", (void*) memmap, sizeof(memmap));
                           fdt_setprop(v_fdt, memory, "reg", NULL, 0);
                           fdt_appendprop_addrrange(v_fdt, 0, memory, "reg", 0x80000000, 32*1024*1024);
                         }
@@ -661,7 +766,7 @@ static void CtrlC()
 {
 	DumpState( core, ram_image);
     for (int n=0; n<virtio_count; n++) {
-      virtio_dump_rings(virtio_devices[n]);
+      //virtio_dump_rings(virtio_devices[n]);
     }
 	exit( 0 );
 }
@@ -875,10 +980,11 @@ static void DumpState( struct MiniRV32IMAState * core, uint8_t * ram_image )
 	if( pc_offset >= 0 && pc_offset < ram_amt - 3 )
 	{
 		ir = *((uint32_t*)(&((uint8_t*)ram_image)[pc_offset]));
-		printf( "[0x%08x] ", ir ); 
+		printf( "[0x%08x] ", ir );
 	}
 	else
-		printf( "[xxxxxxxxxx] " ); 
+		printf( "[xxxxxxxxxx] " );
+        printf("MIP:%08x MIE:%08x ", core->mip, core->mie);
 	uint32_t * regs = core->regs;
 	printf( "Z:%08x ra:%08x sp:%08x gp:%08x tp:%08x t0:%08x t1:%08x t2:%08x s0:%08x s1:%08x a0:%08x a1:%08x a2:%08x a3:%08x a4:%08x a5:%08x ",
 		regs[0], regs[1], regs[2], regs[3], regs[4], regs[5], regs[6], regs[7],

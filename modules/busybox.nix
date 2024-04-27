@@ -26,6 +26,7 @@ let
       CONFIG_MOUNT y
       CONFIG_PING6 n
       CONFIG_POWEROFF y
+      CONFIG_UNAME y
       CONFIG_REBOOT y
       CONFIG_SHELL_HUSH y
       CONFIG_SH_IS_NONE n

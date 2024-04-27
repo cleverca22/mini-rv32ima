@@ -47,6 +47,7 @@ let
       mount -t sysfs sys sys
       mount -t debugfs debugfs sys/kernel/debug/
       mknod /dev/fb0 c 29 0
+      mknod /dev/vda b 254 0
       mknod /dev/urandom c 1 9
       echo boop
       #exit 42

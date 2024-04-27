@@ -111,6 +111,18 @@ MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint
 #define REGSET( x, val ) { state->regs[x] = val; }
 #endif
 
+void raise_hart_irq(struct MiniRV32IMAState * state, int irq) {
+  CSR( extraflags ) &= ~4; // Clear WFI
+  CSR( mip ) |= 1<<irq;
+  printf("raised irq %d\n", irq);
+}
+
+void clear_hart_irq(struct MiniRV32IMAState * state, int irq) {
+  CSR( mip ) &= ~(1<<irq);
+  printf("cleared irq %d\n", irq);
+}
+
+
 #ifndef MINIRV32_STEPPROTO
 MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint8_t * image, uint32_t vProcAddress, uint32_t elapsedUs, int count )
 #else
@@ -139,12 +151,19 @@ MINIRV32_STEPPROTO
 	uint32_t pc = CSR( pc );
 	uint32_t cycle = CSR( cyclel );
 
-	if( ( CSR( mip ) & (1<<7) ) && ( CSR( mie ) & (1<<7) /*mtie*/ ) && ( CSR( mstatus ) & 0x8 /*mie*/) )
+	if( ( CSR( mip ) & CSR(mie) ) && ( CSR( mstatus ) & 0x8 /*mie*/) )
 	{
-		// Timer interrupt.
-		trap = 0x80000007;
-		pc -= 4;
-	}
+          uint32_t ints = CSR( mip ) & CSR(mie);
+          if (ints == 1<<9) {
+            // external interrupt
+            trap = 0x80000009;
+            pc -= 4;
+          } else if (ints == 1<<7) {
+            // Timer interrupt.
+            trap = 0x80000007;
+            pc -= 4;
+          }
+        }
 	else // No timer interrupt?  Execute a bunch of instructions.
 	for( int icount = 0; icount < count; icount++ )
 	{

@@ -89,7 +89,7 @@
                 virtio_input {
                   compatible = "virtio,mmio";
                   status = "disabled";
-                  interrupts = <8>;
+                  interrupts = <9>;
                 };
 	};
 };
