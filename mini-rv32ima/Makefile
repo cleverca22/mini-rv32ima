@@ -5,8 +5,12 @@ mini-rv32ima : mini-rv32ima.c mini-rv32ima.h default64mbdtc.h
 	gcc -o $@ $< -g -O2 -Wall
 	gcc -o $@.tiny $< -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -fwhole-program -s
 
-fat-rv32ima: fat-rv32ima.c mini-rv32ima.h default64mbdtc.h
-	gcc -o $@ $< -g -O2 -Wall -lfdt -DDTB_SUPPORT -lX11
+fat-rv32ima: fat-rv32ima.c mini-rv32ima.h default64mbdtc.h Makefile virtio.h virtio-input.c virtio-blk.c virtio.c
+	gcc -o $@ $< virtio-input.c virtio-blk.c virtio.c -g -O2 -Wall -lfdt -DDTB_SUPPORT -lX11 -ffunction-sections -fdata-sections -Wl,--gc-sections
+	gcc -o $@.fatter $< virtio-input.c virtio-blk.c virtio.c -g -O2 -lfdt -DDTB_SUPPORT -lX11 -ffunction-sections -fdata-sections -Wl,--gc-sections -fno-inline-small-functions -fno-inline
+	mv new-sizes old-sizes || true
+	nm -S --size-sort $@.fatter | cut -d' ' -f2- > new-sizes
+	diff -u --color old-sizes new-sizes || true
 
 mini-rv32ima.flt : mini-rv32ima.c mini-rv32ima.h
 	../buildroot/output/host/bin/riscv32-buildroot-linux-uclibc-gcc -O4 -funroll-loops -s -march=rv32ima -mabi=ilp32 -fPIC $< -Wl,-elf2flt=-r -o $@

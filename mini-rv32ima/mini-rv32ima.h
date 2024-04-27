@@ -172,7 +172,7 @@ MINIRV32_STEPPROTO
             pc -= 4;
           }
         }
-	else // No timer interrupt?  Execute a bunch of instructions.
+	else // No interrupt?  Execute a bunch of instructions.
 	for( int icount = 0; icount < count; icount++ )
 	{
 		uint32_t ir = 0;
