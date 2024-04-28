@@ -52,6 +52,8 @@ let
       echo boop
       #exit 42
       echo hello world
+      mkdir /mnt
+      mount -t ext4 /dev/vda /mnt
       exec /bin/sh
     '';
     destination = "/init";

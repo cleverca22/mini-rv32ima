@@ -6,37 +6,32 @@
 
 #include "virtio.h"
 
-static virtio_device *virtio_devices[64];
+static struct virtio_device *virtio_devices[64];
 static int virtio_count = 0;
 
-static void virtio_mmio_store(virtio_device *dev, uint32_t offset, uint32_t val);
-static uint32_t virtio_mmio_load(virtio_device *dev, uint32_t offset);
+static void virtio_mmio_store(struct virtio_device *dev, uint32_t offset, uint32_t val);
+static uint32_t virtio_mmio_load(struct virtio_device *dev, uint32_t offset);
 
 // i think virtio_mmio in linux, automatically jams the entire queue full with requests for virtio_input_event objects
 // so it has guest ram assigned for every event it can receive at once
-virtio_device *virtio_create(void *ram_image, const virtio_device_type *type, uint32_t base, uint32_t size) {
+struct virtio_device *virtio_create(void *ram_image, const virtio_device_type *type, uint32_t base, uint32_t size) {
   int queues = type->queue_count;
-  virtio_device *dev = malloc(sizeof(virtio_device));
-  bzero(dev, sizeof(virtio_device));
+  struct virtio_device *dev = malloc(sizeof(struct virtio_device));
+  bzero(dev, sizeof(struct virtio_device));
   dev->index = virtio_count;
   dev->type = type;
   dev->reg_base = base;
   dev->reg_size = size;
   dev->ram_image = ram_image;
+  dev->ConfigGeneration = 0;
   dev->queues = malloc(sizeof(virtio_queue) * queues);
   dev->queue_count = queues;
+  for (int i=0; i<queues; i++) {
+    dev->queues[i].QueueReady = 0;
+  }
   virtio_devices[virtio_count] = dev;
   virtio_count++;
   return dev;
-}
-
-static uint16_t virtio_ld16(virtio_device *dev, uint32_t addy) {
-  addy -= 0x80000000;
-  return *((uint16_t*)(dev->ram_image + addy));
-}
-
-static uint16_t virtio_avail_ld16(virtio_device *dev, int queue, uint32_t offset) {
-  return virtio_ld16(dev, offset + dev->queues[queue].QueueDriverLow);
 }
 
 static void hexdump_ram(void *ram_image, uint32_t addr, uint32_t len) {
@@ -51,45 +46,125 @@ static void hexdump_ram(void *ram_image, uint32_t addr, uint32_t len) {
   printf("\n");
 }
 
-static void virtio_dump_desc(virtio_device *dev, const virtio_desc *desc) {
+static void virtio_dump_desc(struct virtio_device *dev, const virtio_desc *desc) {
   printf("\taddr: 0x%lx\n", desc->addr);
   printf("\tlen: %d\n", desc->len);
   printf("\tflags: 0x%x\n", desc->flags);
+  if (desc->flags & 1) puts("\t\tVIRTQ_DESC_F_NEXT");
+  if (desc->flags & 2) puts("\t\tVIRTQ_DESC_F_WRITE"); // host->guest
+  if (desc->flags & 4) puts("\t\tVIRTQ_DESC_F_INDIRECT");
   printf("\tnext: %d\n", desc->next);
-  hexdump_ram(dev->ram_image, desc->addr, desc->len);
+  if (desc->len != 4096) {
+    hexdump_ram(dev->ram_image, desc->addr, desc->len);
+  } else puts("buffer omitted");
 }
 
-static void virtio_dump_available(virtio_device *dev, int queue) {
+static void virtio_dump_available(struct virtio_device *dev, int queue) {
+  virtio_available_ring *ring = cast_guest_ptr(dev->ram_image, dev->queues[queue].QueueDriverLow);
+  virtio_desc *table = cast_guest_ptr(dev->ram_image, dev->queues[queue].QueueDescLow);
+
+  puts("avail ring:");
+  hexdump_ram(dev->ram_image, dev->queues[queue].QueueDriverLow, 32);
+
   printf("dumping available queue %d\n", queue);
   printf("base addr: 0x%x\n", dev->queues[queue].QueueDriverLow);
-  printf("flags: 0x%x\n", virtio_avail_ld16(dev, queue, 0));
-  uint16_t ring_idx = virtio_avail_ld16(dev, queue, 2);
-  printf("idx: 0x%x\n", ring_idx);
-  hexdump_ram(dev->ram_image, dev->queues[queue].QueueDescLow, 256);
-  for (int n=0; n<dev->queues[queue].QueueNum; n++) {
-    if (n == (ring_idx % dev->queues[queue].QueueNum)) {
+  printf("flags: 0x%x\n", ring->flags);
+  printf("idx: %d\n", ring->idx);
+
+  hexdump_ram(dev->ram_image, dev->queues[queue].QueueDescLow, 64);
+
+  for (int n=dev->queues[queue].read_ptr; ; n++) {
+    if (n == ring->idx) {
       puts("hit write ptr");
       break;
     }
-    uint16_t idx = virtio_avail_ld16(dev, queue, 2 + (n*2));
+    uint16_t n_capped = n % dev->queues[queue].QueueNum;
+    uint16_t idx = ring->ring[n_capped];
     uint16_t idx_capped = idx % dev->queues[queue].QueueNum;
-    printf("slot[%d]: %d(%d)\n", n, idx, idx_capped);
-    if ((idx > 0) && (idx < 64)) {
-      virtio_desc *desc = dev->queues[queue].QueueDescLow - 0x80000000 + ((idx-1) * 16) + dev->ram_image;
+    printf("slot[%d(%d)]: %d(%d)\n", n, n_capped, idx, idx_capped);
+    if (idx_capped < 64) {
+      virtio_desc *desc = &table[idx_capped];
 again:
       virtio_dump_desc(dev, desc);
       if (desc->flags & 1) {
         idx = desc->next;
-        desc = dev->queues[queue].QueueDescLow - 0x80000000 + (idx * 16) + dev->ram_image;
+        desc = &table[idx];
         goto again;
       }
     }
   }
   // VIRTIO_F_EVENT_IDX(29)
-  printf("used_event: 0x%x\n", virtio_avail_ld16(dev, queue, 2 + (64*2)));
+  printf("used_event: %d\n", ring->ring[64]);
 }
 
-static void virtio_dump_rings(virtio_device *dev) {
+void virtio_process_rings(struct virtio_device *dev) {
+  for (int queue=0; queue < dev->queue_count; queue++) {
+    virtio_desc *table = cast_guest_ptr(dev->ram_image, dev->queues[queue].QueueDescLow);
+    virtio_available_ring *ring = cast_guest_ptr(dev->ram_image, dev->queues[queue].QueueDriverLow);
+    printf(RED"read ptr %d\n"DEFAULT, dev->queues[queue].read_ptr);
+    for (int n=dev->queues[queue].read_ptr; ; n++) {
+      if (n == ring->idx) {
+        dev->queues[queue].read_ptr = n;
+        puts("hit write ptr");
+        break;
+      }
+      uint16_t n_capped = n % dev->queues[queue].QueueNum;
+      int descriptor_chain_length = 0;
+      uint16_t idx = ring->ring[n_capped];
+      uint16_t start_idx = idx;
+      printf("slot[%d(%d)]: %d\n", n, n_capped, idx);
+again:
+      virtio_desc *desc = &table[idx];
+      descriptor_chain_length++;
+      if (desc->flags & 1) {
+        idx = desc->next;
+        goto again;
+      }
+      //printf("total length: %d\n", descriptor_chain_length);
+      // TODO, this chain gets leaked
+      struct virtio_desc_internal *chain = malloc(sizeof(struct virtio_desc_internal) * descriptor_chain_length);
+
+      int slot = 0;
+      idx = start_idx;
+again2:
+      desc = &table[idx];
+      chain[slot].message = cast_guest_ptr(dev->ram_image, desc->addr);
+      chain[slot].message_len = desc->len;
+      chain[slot].flags = desc->flags;
+      slot++;
+      if (desc->flags & 1) {
+        idx = desc->next;
+        goto again2;
+      }
+      printf(RED"command at idx %d(%d)->%d with %d buffers\n"DEFAULT, n, n_capped, start_idx, descriptor_chain_length);
+      assert(dev->type->process_command);
+      dev->type->process_command(dev, chain, descriptor_chain_length, queue, start_idx);
+    }
+  }
+}
+
+void virtio_flag_completion(struct virtio_device *dev, int queue, uint16_t start_idx, uint32_t written) {
+  struct virtio_used_ring *ring = cast_guest_ptr(dev->ram_image, dev->queues[queue].QueueDeviceLow);
+  int index = dev->queues[queue].write_ptr % dev->queues[queue].QueueNum;
+
+  ring->ring[index].id = start_idx;
+  ring->ring[index].written = written;
+
+  dev->queues[queue].write_ptr++;
+  ring->idx = dev->queues[queue].write_ptr;
+  dev->InterruptStatus |= 1;
+  virtio_raise_irq();
+  //hexdump_ram(dev->ram_image, dev->queues[queue].QueueDeviceLow, 32);
+  printf(RED"command at idx %d completed into %d(%d), %d written\n"DEFAULT, start_idx, dev->queues[queue].write_ptr - 1, index, written);
+}
+
+void virtio_config_changed(struct virtio_device *dev) {
+  dev->ConfigGeneration++;
+  dev->InterruptStatus |= 2;
+  virtio_raise_irq();
+}
+
+static void virtio_dump_rings(struct virtio_device *dev) {
   printf("virtio%d has %d queues\n", dev->index, dev->queue_count);
   for (int n=0; n<dev->queue_count; n++) {
     virtio_dump_available(dev, n);
@@ -129,8 +204,8 @@ uint32_t virtio_load(uint32_t addr) {
   return ret;
 }
 
-static void virtio_mmio_store(virtio_device *dev, uint32_t offset, uint32_t val) {
-  printf("virtio%d_store(0x%x, 0x%x)\n", dev->index, offset, val);
+static void virtio_mmio_store(struct virtio_device *dev, uint32_t offset, uint32_t val) {
+  //printf("virtio%d_store(0x%x, 0x%x)\n", dev->index, offset, val);
   switch (offset) {
   case 0x14:
     dev->DeviceFeaturesSel = val;
@@ -161,15 +236,23 @@ static void virtio_mmio_store(virtio_device *dev, uint32_t offset, uint32_t val)
     break;
   case 0x50: // QueueNotify
     printf("QueueNotify %d\n", val);
-    virtio_dump_rings(dev);
+    //virtio_dump_rings(dev);
+    virtio_process_rings(dev);
     break;
   case 0x64: // InterruptACK
-    virtio_maybe_clear_irq();
+    dev->InterruptStatus &= ~val;
+    if (dev->InterruptStatus == 0) {
+      virtio_maybe_clear_irq();
+    }
     break;
   case 0x70:
     dev->Status = val;
     if (val == 0) {
       puts("virtio reset");
+      dev->InterruptStatus = 0;
+      for (int queue=0; queue < dev->queue_count; queue++) {
+        dev->queues[queue].read_ptr = 0;
+      }
     } else {
       if (val & 1) puts("VIRTIO_CONFIG_S_ACKNOWLEDGE");
       if (val & 2) puts("VIRTIO_CONFIG_S_DRIVER (driver found for dev)");
@@ -195,16 +278,14 @@ static void virtio_mmio_store(virtio_device *dev, uint32_t offset, uint32_t val)
   case 0xa4: // QueueDeviceHigh
     assert(val == 0);
     break;
-  case 0x100: // virtio-input config select
-    dev->config_select = val;
-    break;
-  case 0x101: // virtio-input config sub select
-    dev->config_subsel = val;
-    break;
+  }
+  if ( (offset >= 0x100) && (offset < (0x100 + 128))) {
+    int newoff = offset - 0x100;
+    dev->type->config_store(dev, newoff, val);
   }
 }
 
-static uint32_t virtio_mmio_load(virtio_device *dev, uint32_t offset) {
+static uint32_t virtio_mmio_load(struct virtio_device *dev, uint32_t offset) {
   uint32_t ret = 0;
   switch (offset) {
   case 0: // MagicValue
@@ -236,6 +317,9 @@ static uint32_t virtio_mmio_load(virtio_device *dev, uint32_t offset) {
   case 0x44:
     ret = dev->queues[dev->QueueSel].QueueReady;
     break;
+  case 0x60:
+    ret = dev->InterruptStatus;
+    break;
   case 0x70:
     ret = dev->Status;
     break;
@@ -244,22 +328,6 @@ static uint32_t virtio_mmio_load(virtio_device *dev, uint32_t offset) {
     // the guest will detect 0xfc changing, know it lost the race, and repeat the process
     ret = dev->ConfigGeneration;
     break;
-  case 0x102:
-    switch (dev->config_select) {
-    case 1: // id name
-      ret = strlen("fat-rv32ima");
-      break;
-    case 0x11:
-      // config_subsel is a type like EV_KEY
-      // value returned at 0x108, should be a bitmap, of every code (KEY_C or REL_X) the device supports
-    case 0x12:
-      // absolute pointer space
-      // linux will only read it, if the above bitfield reports a EV_ABS type
-      // it will then check for each bit (such as 1<<ABS_X), and query the range for that axis
-    default:
-      printf("size read for unsupported 0x%x.0x%x\n", dev->config_select, dev->config_subsel);
-      break;
-    }
   }
   if ( (offset >= 0x100) && (offset < (0x100 + 128))) {
     int newoff = offset - 0x100;

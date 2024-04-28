@@ -80,6 +80,10 @@ int HandleDestroy() {
 
 static void DumpState( struct MiniRV32IMAState * core, uint8_t * ram_image );
 
+void *cast_guest_ptr(void *image, uint32_t addr) {
+  addr -= MINIRV32_RAM_IMAGE_OFFSET;
+  return image + addr;
+}
 
 int main( int argc, char ** argv )
 {
@@ -263,7 +267,8 @@ restart:
                           fdt_setprop_string(v_fdt, fb, "format", "a8r8g8b8");
                         }
                         if (true) {
-                          virtio_device *virtio_input = virtio_create(ram_image, &virtio_blk_type, 0x10010000, 0x200);
+                          struct virtio_device *virtio_input = virtio_create(ram_image, &virtio_blk_type, 0x10010000, 0x200);
+                          //struct virtio_device *virtio_input = virtio_create(ram_image, &virtio_input_type, 0x10010000, 0x200);
                           int soc = fdt_path_offset(v_fdt, "/soc");
                           int virtio = fdt_path_offset(v_fdt, "/soc/virtio_input");
                           fdt_appendprop_addrrange(v_fdt, soc, virtio, "reg", virtio_input->reg_base, virtio_input->reg_size);
@@ -564,9 +569,12 @@ static uint32_t HandleControlLoad( uint32_t addy )
 		ret = 0x60 | IsKBHit();
 	else if( addy == 0x10000000 && IsKBHit() )
 		ret = ReadKBByte();
+        else if (addy == 0x10000001) {}
+        else if (addy == 0x10000002) {}
+        else if (addy == 0x10000006) {}
   else {
     ret = virtio_load(addy);
-    printf("HandleControlLoad(0x%x) == 0x%x\n", addy, ret);
+    //printf("HandleControlLoad(0x%x) == 0x%x\n", addy, ret);
   }
 	return ret;
 }

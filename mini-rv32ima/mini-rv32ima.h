@@ -114,12 +114,24 @@ MINIRV32_DECORATE int32_t MiniRV32IMAStep( struct MiniRV32IMAState * state, uint
 void raise_hart_irq(struct MiniRV32IMAState * state, int irq) {
   CSR( extraflags ) &= ~4; // Clear WFI
   CSR( mip ) |= 1<<irq;
-  printf("raised irq %d\n", irq);
+  //printf("raised irq %d\n", irq);
 }
 
 void clear_hart_irq(struct MiniRV32IMAState * state, int irq) {
   CSR( mip ) &= ~(1<<irq);
-  printf("cleared irq %d\n", irq);
+  //printf("cleared irq %d\n", irq);
+}
+
+void copy_from_guest(void *image, uint32_t addr, uint32_t len, void *out) {
+  addr -= MINIRV32_RAM_IMAGE_OFFSET;
+  void *src = image + addr;
+  memcpy(out, src, len);
+}
+
+void copy_to_guest(void *image, void *src, uint32_t addr, uint32_t len) {
+  addr -= MINIRV32_RAM_IMAGE_OFFSET;
+  void *dst = image + addr;
+  memcpy(dst, src, len);
 }
 
 
