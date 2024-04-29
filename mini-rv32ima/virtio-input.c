@@ -31,6 +31,9 @@ static const int key_translate[65536] = {
   [47] = KEY_SLASH,
   [48] = KEY_0,
   [49] = KEY_1,
+  [50] = KEY_2,
+  [51] = KEY_3,
+  [52] = KEY_4,
   [57] = KEY_9,
   [59] = KEY_SEMICOLON,
   [61] = KEY_EQUAL,
@@ -170,25 +173,30 @@ static void virtio_input_process_command(struct virtio_device *dev, struct virti
   }
 }
 
-void HandleKey( int keycode, int bDown ) {
-  printf("virtio input HandleKey: %d %d\n", keycode, bDown);
+void send_event(uint16_t type, uint16_t code, uint32_t value) {
   struct input_queue *node = virtio_input_queue_head;
   if (!node) {
     puts("key dropped, no buffer");
     return;
   }
+  struct virtio_input_event *evt = node->dest;
+  evt->type = type;
+  evt->code = code;
+  evt->value = value;
+  virtio_flag_completion(node->dev, node->queue, node->start_idx, 8);
+  virtio_input_queue_head = node->next;
+  free(node);
+}
+
+void HandleKey( int keycode, int bDown ) {
+  printf("virtio input HandleKey: %d %d\n", keycode, bDown);
   int key2 = key_translate[keycode];
   if (key2 == 0) {
     printf("%d not mapped\n", keycode);
     return;
   }
-  struct virtio_input_event *evt = node->dest;
-  evt->type = EV_KEY;
-  evt->code = key2;
-  evt->value = bDown;
-  virtio_flag_completion(node->dev, node->queue, node->start_idx, 8);
-  virtio_input_queue_head = node->next;
-  free(node);
+  send_event(EV_KEY, key2, bDown);
+  send_event(EV_SYN, 0, 0);
 }
 
 const virtio_device_type virtio_input_type = {
