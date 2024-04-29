@@ -17,7 +17,7 @@ struct input_queue {
 
 struct input_queue *virtio_input_queue_head = NULL;
 
-static const int key_translate[65536] = {
+static const uint16_t key_translate[65536] = {
   [32] = KEY_SPACE,
   //[39] = '
   [44] = KEY_COMMA,
