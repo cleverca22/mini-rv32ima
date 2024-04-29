@@ -158,7 +158,7 @@ void virtio_flag_completion(struct virtio_device *dev, int queue, uint16_t start
   dev->InterruptStatus |= 1;
   virtio_raise_irq();
   //hexdump_ram(dev->ram_image, dev->queues[queue].QueueDeviceLow, 32);
-  printf(RED"command at idx %d completed into %d(%d), %d written\n"DEFAULT, start_idx, dev->queues[queue].write_ptr - 1, index, written);
+  //printf(RED"command at idx %d completed into %d(%d), %d written\n"DEFAULT, start_idx, dev->queues[queue].write_ptr - 1, index, written);
 }
 
 void virtio_config_changed(struct virtio_device *dev) {

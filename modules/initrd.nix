@@ -46,12 +46,16 @@ let
       mount -t proc proc proc
       mount -t sysfs sys sys
       mount -t debugfs debugfs sys/kernel/debug/
-      mknod /dev/fb0 c 29 0
-      mknod /dev/vda b 254 0
-      mknod /dev/urandom c 1 9
-      mknod /dev/tty1 c 4 1
-      mknod /dev/null c 1 3
+      mount -t devtmpfs devfs dev/
+
+      #mknod /dev/fb0 c 29 0
+      #mknod /dev/vda b 254 0
+      #mknod /dev/urandom c 1 9
+      #mknod /dev/tty1 c 4 1
+      #mknod /dev/null c 1 3
+      #mknod /dev/input/event0 c 13 64
       #/bin/sh < /dev/tty1 > /dev/tty1 2>/dev/tty1 &
+
       getty -n -l /bin/sh 9600 /dev/tty1 &
       echo boop
       #exit 42

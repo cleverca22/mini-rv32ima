@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <linux/input.h>
+#include <linux/virtio_input.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,12 +13,6 @@ struct input_queue {
   int queue;
   uint16_t start_idx;
   struct input_queue *next;
-};
-
-struct virtio_input_event {
-  uint16_t type;
-  uint16_t code;
-  uint32_t value;
 };
 
 struct input_queue *virtio_input_queue_head = NULL;
@@ -68,9 +63,19 @@ static const int key_translate[65536] = {
   [122] = KEY_Z,
   [65293] = KEY_ENTER,
   [65505] = KEY_LEFTSHIFT,
+  [65507] = KEY_LEFTCTRL,
 };
 
 static uint8_t key_bitmap[8];
+static uint8_t axis_bitmap[1] = { 3 };
+static const struct virtio_input_absinfo abs_x = {
+  .min = 0,
+  .max = 640,
+};
+static const struct virtio_input_absinfo abs_y = {
+  .min = 0,
+  .max = 480,
+};
 
 void virtio_input_init() {
   for (int i=0; i < (sizeof(key_translate)/sizeof(key_translate[0])); i++) {
@@ -105,12 +110,21 @@ uint32_t virtio_input_config_load(struct virtio_device *dev, uint32_t offset) {
       case EV_KEY:
         ret = sizeof(key_bitmap); // device can send keys, and the bitmap of supported keys is 4 bytes
         break;
+      case EV_ABS:
+        ret = sizeof(axis_bitmap);
+        break;
       }
       break;
     case 0x12:
       // absolute pointer space
       // linux will only read it, if the above bitfield reports a EV_ABS type
       // it will then check for each bit (such as 1<<ABS_X), and query the range for that axis
+      switch (dev->config_subsel) {
+      case ABS_X:
+      case ABS_Y:
+        ret = sizeof(struct virtio_input_absinfo);
+        break;
+      }
     default:
       printf("size read for unsupported 0x%x.0x%x\n", dev->config_select, dev->config_subsel);
       break;
@@ -124,13 +138,34 @@ uint32_t virtio_input_config_load(struct virtio_device *dev, uint32_t offset) {
         ret = str[offset - 8];
         break;
       case 0x11: // bitmap of key codes device supports
-      switch (dev->config_subsel) {
-      case EV_KEY:
-        if ((offset-8) < sizeof(key_bitmap)) {
-          ret = key_bitmap[offset-8];
+        switch (dev->config_subsel) {
+        case EV_KEY:
+          if ((offset-8) < sizeof(key_bitmap)) {
+            ret = key_bitmap[offset-8];
+          }
+          break;
+        case EV_ABS:
+          if ((offset-8) < sizeof(axis_bitmap)) {
+            ret = axis_bitmap[offset-8];
+          }
+          break;
         }
         break;
-      }
+      case 0x12:
+        switch (dev->config_subsel) {
+        case ABS_X:
+          if ((offset-8) < sizeof(struct virtio_input_absinfo)) {
+            uint8_t *addr = &abs_x;
+            ret = addr[offset-8];
+          }
+          break;
+        case ABS_Y:
+          if ((offset-8) < sizeof(struct virtio_input_absinfo)) {
+            uint8_t *addr = &abs_y;
+            ret = addr[offset-8];
+          }
+          break;
+        }
       }
     }
   }
@@ -153,7 +188,6 @@ static void virtio_input_process_command(struct virtio_device *dev, struct virti
   assert(chain[0].message_len == 8);
   assert(chain[0].flags == 2);
   assert(queue == 0);
-  printf("input %p\n", chain[0].message);
 
   struct input_queue *node = malloc(sizeof(struct input_queue));
   node->dest = chain[0].message;
@@ -196,6 +230,12 @@ void HandleKey( int keycode, int bDown ) {
     return;
   }
   send_event(EV_KEY, key2, bDown);
+  send_event(EV_SYN, 0, 0);
+}
+
+void HandleMotion( int x, int y, int mask ) {
+  send_event(EV_ABS, ABS_X, x);
+  send_event(EV_ABS, ABS_Y, y);
   send_event(EV_SYN, 0, 0);
 }
 
