@@ -98,21 +98,22 @@ again:
 }
 
 void virtio_process_rings(struct virtio_device *dev) {
+  int total_chains = 0;
   for (int queue=0; queue < dev->queue_count; queue++) {
     virtio_desc *table = cast_guest_ptr(dev->ram_image, dev->queues[queue].QueueDescLow);
     virtio_available_ring *ring = cast_guest_ptr(dev->ram_image, dev->queues[queue].QueueDriverLow);
-    printf(RED"read ptr %d\n"DEFAULT, dev->queues[queue].read_ptr);
+    //printf(RED"read ptr %d\n"DEFAULT, dev->queues[queue].read_ptr);
     for (int n=dev->queues[queue].read_ptr; ; n++) {
       if (n == ring->idx) {
         dev->queues[queue].read_ptr = n;
-        puts("hit write ptr");
+        //puts("hit write ptr");
         break;
       }
       uint16_t n_capped = n % dev->queues[queue].QueueNum;
       int descriptor_chain_length = 0;
       uint16_t idx = ring->ring[n_capped];
       uint16_t start_idx = idx;
-      printf("slot[%d(%d)]: %d\n", n, n_capped, idx);
+      //printf("slot[%d(%d)]: %d\n", n, n_capped, idx);
 again:
       virtio_desc *desc = &table[idx];
       descriptor_chain_length++;
@@ -136,11 +137,13 @@ again2:
         idx = desc->next;
         goto again2;
       }
-      printf(RED"command at idx %d(%d)->%d with %d buffers\n"DEFAULT, n, n_capped, start_idx, descriptor_chain_length);
+      //printf(RED"command at idx %d(%d)->%d with %d buffers\n"DEFAULT, n, n_capped, start_idx, descriptor_chain_length);
       assert(dev->type->process_command);
       dev->type->process_command(dev, chain, descriptor_chain_length, queue, start_idx);
+      total_chains++;
     }
   }
+  printf(RED"%d total IO in this kick\n"DEFAULT, total_chains);
 }
 
 void virtio_flag_completion(struct virtio_device *dev, int queue, uint16_t start_idx, uint32_t written) {
@@ -307,7 +310,7 @@ static uint32_t virtio_mmio_load(struct virtio_device *dev, uint32_t offset) {
   case 0x34: // QueueNumMax
     switch (dev->QueueSel) {
     case 0:
-      ret = 64;
+      ret = 1024;
       break;
     case 1:
       ret = 64;

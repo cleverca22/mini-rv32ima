@@ -64,13 +64,16 @@ void virtio_raise_irq() {
   raise_hart_irq(core, 9);
 }
 
-void HandleKey( int keycode, int bDown ) {
+#define WEAK __attribute__((weak))
+
+// defined as WEAK, so virtio-input can steal them, but if you comment out input, they have a fallback
+void WEAK HandleKey( int keycode, int bDown ) {
   printf("HandleKey: %d %d\n", keycode, bDown);
 }
-void HandleButton( int x, int y, int button, int bDown ) {
+void WEAK HandleButton( int x, int y, int button, int bDown ) {
   printf("HandleButton(%d, %d, %d, %d)\n", x, y, button, bDown);
 }
-void HandleMotion( int x, int y, int mask ) {
+void WEAK HandleMotion( int x, int y, int mask ) {
   //printf("HandleMotion(%d, %d, %d)\n", x, y, mask);
 }
 int HandleDestroy() {
@@ -100,6 +103,9 @@ int main( int argc, char ** argv )
         const char *initrd_name = NULL;
 	const char * dtb_file_name = 0;
         bool enable_gfx = true;
+        bool enable_virtio_blk = false;
+        bool enable_virtio_input = true;
+        virtio_input_init();
 
 	for( i = 1; i < argc; i++ )
 	{
@@ -251,6 +257,7 @@ restart:
                           fclose(fh);
                         }
                         if (enable_gfx) {
+                          // TODO, adjust the top of ram in /memory below
                           int system = fdt_add_subnode(v_fdt, 0, "system");
                           fdt_setprop_string(v_fdt, system, "compatible", "simple-bus");
                           fdt_setprop_u32(v_fdt, system, "#address-cells", 1);
@@ -266,14 +273,23 @@ restart:
                           fdt_setprop_u32(v_fdt, fb, "stride", 640*4);
                           fdt_setprop_string(v_fdt, fb, "format", "a8r8g8b8");
                         }
-                        if (true) {
-                          struct virtio_device *virtio_input = virtio_create(ram_image, &virtio_blk_type, 0x10010000, 0x200);
-                          //struct virtio_device *virtio_input = virtio_create(ram_image, &virtio_input_type, 0x10010000, 0x200);
+                        if (enable_virtio_blk) {
+                          struct virtio_device *virtio_dev = virtio_create(ram_image, &virtio_blk_type, 0x10010000, 0x200);
                           int soc = fdt_path_offset(v_fdt, "/soc");
-                          int virtio = fdt_path_offset(v_fdt, "/soc/virtio_input");
-                          fdt_appendprop_addrrange(v_fdt, soc, virtio, "reg", virtio_input->reg_base, virtio_input->reg_size);
-                          //fdt_setprop_u32(v_fdt, virtio, "interrupts", 42);
+                          int virtio = fdt_add_subnode(v_fdt, soc, "virtio_blk");
+                          fdt_appendprop_addrrange(v_fdt, soc, virtio, "reg", virtio_dev->reg_base, virtio_dev->reg_size);
+                          fdt_setprop_u32(v_fdt, virtio, "interrupts", 9);
                           fdt_setprop_string(v_fdt, virtio, "status", "okay");
+                          fdt_setprop_string(v_fdt, virtio, "compatible", "virtio,mmio");
+                        }
+                        if (enable_virtio_input) {
+                          struct virtio_device *virtio_dev = virtio_create(ram_image, &virtio_input_type, 0x10020000, 0x200);
+                          int soc = fdt_path_offset(v_fdt, "/soc");
+                          int virtio = fdt_add_subnode(v_fdt, soc, "virtio_input");
+                          fdt_appendprop_addrrange(v_fdt, soc, virtio, "reg", virtio_dev->reg_base, virtio_dev->reg_size);
+                          fdt_setprop_u32(v_fdt, virtio, "interrupts", 9);
+                          fdt_setprop_string(v_fdt, virtio, "status", "okay");
+                          fdt_setprop_string(v_fdt, virtio, "compatible", "virtio,mmio");
                         }
                         int chosen = fdt_path_offset(v_fdt, "/chosen");
                         if (chosen < 0) {
@@ -293,7 +309,11 @@ restart:
                         int memory = fdt_path_offset(v_fdt, "/memory@80000000");
                         if (memory > 0) {
                           fdt_setprop(v_fdt, memory, "reg", NULL, 0);
-                          fdt_appendprop_addrrange(v_fdt, 0, memory, "reg", 0x80000000, 32*1024*1024);
+                          if (enable_gfx) {
+                            fdt_appendprop_addrrange(v_fdt, 0, memory, "reg", 0x80000000, 32 * 1024 * 1024);
+                          } else {
+                            fdt_appendprop_addrrange(v_fdt, 0, memory, "reg", 0x80000000, ram_amt - (16*1024));
+                          }
                         }
 #endif
 		}
@@ -348,19 +368,21 @@ restart:
 			case 0x5555: printf( "POWEROFF@0x%08x%08x\n", core->cycleh, core->cyclel ); return 0; //syscon code for power-off
 			default: printf( "Unknown failure\n" ); break;
 		}
-                uint64_t now = GetTimeMicroseconds();
-                uint64_t sinceflip = now - lastflip;
-                if (sinceflip > 16666) {
-                  uint64_t start = GetTimeMicroseconds();
-                  CNFGBlitImage((uint32_t*)(ram_image + (32*1024*1024)), 0, 0, 640, 480);
-                  CNFGSwapBuffers();
-                  CNFGHandleInput();
-                  uint64_t end = GetTimeMicroseconds();
+                if (enable_gfx) {
+                  uint64_t now = GetTimeMicroseconds();
+                  uint64_t sinceflip = now - lastflip;
+                  if (sinceflip > 16666) {
+                    uint64_t start = GetTimeMicroseconds();
+                    CNFGBlitImage((uint32_t*)(ram_image + (32*1024*1024)), 0, 0, 640, 480);
+                    CNFGSwapBuffers();
+                    CNFGHandleInput();
+                    uint64_t end = GetTimeMicroseconds();
 #if 0
-                  uint64_t spent = end - start;
-                  printf("spent %ld\n", spent);
+                    uint64_t spent = end - start;
+                    printf("spent %ld\n", spent);
 #endif
-                  lastflip = end;
+                    lastflip = end;
+                  }
                 }
 	}
 

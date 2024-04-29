@@ -86,10 +86,5 @@
 			reg = <0x11000000 0x10000>;
 			compatible = "sifive,clint0", "riscv,clint0";
 		};
-                virtio_input {
-                  compatible = "virtio,mmio";
-                  status = "disabled";
-                  interrupts = <9>;
-                };
 	};
 };

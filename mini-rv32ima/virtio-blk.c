@@ -63,7 +63,7 @@ static void virtio_blk_process_command(struct virtio_device *dev, struct virtio_
   uint32_t written = 0;
   int ret;
 
-  printf(GREEN"type: %d, sector: %ld bytes: %ld\n"DEFAULT, req->type, req->sector, chain[1].message_len);
+  printf(GREEN"type: %d, sector: %ld bytes: %d\n"DEFAULT, req->type, req->sector, chain[1].message_len);
   switch (req->type) {
   case 0: // read
     assert(chain[1].flags & 2); // buffer must be write type

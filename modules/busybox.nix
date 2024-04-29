@@ -43,6 +43,7 @@ let
       CONFIG_MKDIR y
       CONFIG_TOUCH y
       CONFIG_UMOUNT y
+      CONFIG_GETTY y
     '' + lib.optionalString cfg.free "CONFIG_FREE y";
       #${builtins.readFile ./configs/busybox_config}
   };
