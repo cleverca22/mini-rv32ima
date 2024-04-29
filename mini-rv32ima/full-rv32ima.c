@@ -54,6 +54,8 @@ uint8_t * ram_image = 0;
 struct MiniRV32IMAState * core;
 const char * kernel_command_line = 0;
 
+bool want_exit = false;
+
 
 void virtio_maybe_clear_irq() {
   // TODO, go over every virtio device and check if the condition is actually clear
@@ -151,7 +153,7 @@ int main( int argc, char ** argv )
 	}
 
         if (enable_gfx) {
-          CNFGSetup("fat-rv32ima", 640, 480);
+          CNFGSetup("full-rv32ima", 640, 480);
         }
 
 	ram_image = malloc( ram_amt );
@@ -371,7 +373,11 @@ restart:
                 if (enable_gfx) {
                   uint64_t now = GetTimeMicroseconds();
                   uint64_t sinceflip = now - lastflip;
+#ifdef CNFGHTTP
+                  if (sinceflip > 1000000) {
+#else
                   if (sinceflip > 16666) {
+#endif
                     uint64_t start = GetTimeMicroseconds();
                     CNFGBlitImage((uint32_t*)(ram_image + (32*1024*1024)), 0, 0, 640, 480);
                     CNFGSwapBuffers();
@@ -384,9 +390,13 @@ restart:
                     lastflip = end;
                   }
                 }
+                if (want_exit) break;
 	}
+        // virtio_dump_all();
 
 	DumpState( core, ram_image);
+
+        return 0;
 }
 
 
@@ -483,9 +493,7 @@ static int ReadKBByte()
 
 static void CtrlC()
 {
-	DumpState( core, ram_image);
-        // virtio_dump_all();
-	exit( 0 );
+  want_exit = true;
 }
 
 // Override keyboard, so we can capture all keyboard input for the VM.

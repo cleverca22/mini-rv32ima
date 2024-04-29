@@ -100,6 +100,7 @@ uint32_t virtio_load(uint32_t addr);
 void *cast_guest_ptr(void *image, uint32_t addr);
 void virtio_flag_completion(struct virtio_device *dev, int queue, uint16_t start_idx, uint32_t written);
 void virtio_config_changed(struct virtio_device *dev);
+void virtio_input_init();
 
 extern const virtio_device_type virtio_blk_type;
 extern const virtio_device_type virtio_input_type;

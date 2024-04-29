@@ -143,7 +143,7 @@ again2:
       total_chains++;
     }
   }
-  printf(RED"%d total IO in this kick\n"DEFAULT, total_chains);
+  //printf(RED"%d total IO in this kick\n"DEFAULT, total_chains);
 }
 
 void virtio_flag_completion(struct virtio_device *dev, int queue, uint16_t start_idx, uint32_t written) {
@@ -238,7 +238,7 @@ static void virtio_mmio_store(struct virtio_device *dev, uint32_t offset, uint32
     }
     break;
   case 0x50: // QueueNotify
-    printf("QueueNotify %d\n", val);
+    //printf("QueueNotify %d\n", val);
     //virtio_dump_rings(dev);
     virtio_process_rings(dev);
     break;
@@ -336,6 +336,6 @@ static uint32_t virtio_mmio_load(struct virtio_device *dev, uint32_t offset) {
     int newoff = offset - 0x100;
     ret = dev->type->config_load(dev, newoff);
   }
-  printf("virtio%d_load(0x%x) == 0x%x\n", dev->index, offset, ret);
+  //printf("virtio%d_load(0x%x) == 0x%x\n", dev->index, offset, ret);
   return ret;
 }

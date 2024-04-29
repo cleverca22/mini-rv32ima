@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <X11/keysymdef.h>
 #include "virtio.h"
 
 struct input_queue {
@@ -18,8 +19,9 @@ struct input_queue {
 struct input_queue *virtio_input_queue_head = NULL;
 
 static const uint16_t key_translate[65536] = {
+  [13] = KEY_ENTER,
   [32] = KEY_SPACE,
-  //[39] = '
+  [39] = KEY_LEFTCTRL,
   [44] = KEY_COMMA,
   [45] = KEY_MINUS,
   [46] = KEY_DOT,
@@ -29,12 +31,19 @@ static const uint16_t key_translate[65536] = {
   [50] = KEY_2,
   [51] = KEY_3,
   [52] = KEY_4,
+  [53] = KEY_5,
+  [54] = KEY_6,
+  [55] = KEY_7,
+  [56] = KEY_8,
   [57] = KEY_9,
   [59] = KEY_SEMICOLON,
   [61] = KEY_EQUAL,
-  //[91] = [
+  [65] = KEY_A,
+  [66] = KEY_B,
+  [91] = KEY_LEFTBRACE,
   [92] = KEY_BACKSLASH,
-  //[93] = ]
+  [93] = KEY_RIGHTBRACE,
+  [96] = KEY_GRAVE,
   [97] = KEY_A,
   [98] = KEY_B,
   [99] = KEY_C,
@@ -61,12 +70,55 @@ static const uint16_t key_translate[65536] = {
   [120] = KEY_X,
   [121] = KEY_Y,
   [122] = KEY_Z,
+  [65288] = KEY_BACKSPACE,
+  [65289] = KEY_TAB,
   [65293] = KEY_ENTER,
+  [65299] = KEY_PAUSE,
+  [65300] = KEY_SCROLLLOCK,
+  [65307] = KEY_ESC,
+  [65360] = KEY_HOME,
+  [65361] = KEY_LEFT,
+  [65362] = KEY_UP,
+  [65363] = KEY_RIGHT,
+  [65364] = KEY_DOWN,
+  [65365] = KEY_PAGEUP,
+  [65366] = KEY_PAGEDOWN,
+  [65367] = KEY_END,
+  [65379] = KEY_INSERT,
+  [65383] = KEY_COMPOSE,
+  [65407] = KEY_NUMLOCK,
+
+  [65421] = KEY_KPENTER,
+  [65429] = KEY_KP7,
+  [65430] = KEY_KP4,
+  [65431] = KEY_KP8,
+  [65432] = KEY_KP6,
+  [65433] = KEY_KP2,
+  [65434] = KEY_KP9,
+  [65435] = KEY_KP3,
+  [65436] = KEY_KP1,
+  [65437] = KEY_KP5,
+  [65438] = KEY_KP0,
+  [65439] = KEY_KPDOT,
+  [65450] = KEY_KPASTERISK,
+  [65451] = KEY_KPPLUS,
+  [65453] = KEY_KPMINUS,
+  [65455] = KEY_KPSLASH,
+
+  [65470] = KEY_F1,
+  [65481] = KEY_F12,
   [65505] = KEY_LEFTSHIFT,
+  [65506] = KEY_RIGHTSHIFT,
   [65507] = KEY_LEFTCTRL,
+  [65509] = KEY_CAPSLOCK,
+  [65513] = KEY_LEFTALT,
+  [65514] = KEY_RIGHTALT,
+  [65515] = KEY_LEFTMETA,
+  [65516] = KEY_RIGHTMETA,
+  [65535] = KEY_DELETE,
 };
 
-static uint8_t key_bitmap[8];
+static uint8_t key_bitmap[16];
 static uint8_t axis_bitmap[1] = { 3 };
 static const struct virtio_input_absinfo abs_x = {
   .min = 0,
@@ -83,7 +135,7 @@ void virtio_input_init() {
       unsigned int code = key_translate[i];
       unsigned int byte = code / 8;
       unsigned int bit = code % 8;
-      printf("%u %u %u %u\n", i, code, byte, bit);
+      printf("rawdraw:%u linux:%u byte:%u bit:%u\n", i, code, byte, bit);
       assert(byte < sizeof(key_bitmap));
       key_bitmap[byte] |= 1<<bit;
     }
@@ -101,7 +153,7 @@ uint32_t virtio_input_config_load(struct virtio_device *dev, uint32_t offset) {
   case 2: // size
     switch (dev->config_select) {
     case 1: // id name
-      ret = strlen("fat-rv32ima");
+      ret = strlen("full-rv32ima");
       break;
     case 0x11:
       // config_subsel is a type like EV_KEY
@@ -134,7 +186,7 @@ uint32_t virtio_input_config_load(struct virtio_device *dev, uint32_t offset) {
     if (offset >= 8) {
       switch (dev->config_select) {
       case 1: // id name
-        const char *str = "fat-rv32ima";
+        const char *str = "full-rv32ima";
         ret = str[offset - 8];
         break;
       case 0x11: // bitmap of key codes device supports
@@ -155,13 +207,13 @@ uint32_t virtio_input_config_load(struct virtio_device *dev, uint32_t offset) {
         switch (dev->config_subsel) {
         case ABS_X:
           if ((offset-8) < sizeof(struct virtio_input_absinfo)) {
-            uint8_t *addr = &abs_x;
+            uint8_t *addr = (uint8_t*)&abs_x;
             ret = addr[offset-8];
           }
           break;
         case ABS_Y:
           if ((offset-8) < sizeof(struct virtio_input_absinfo)) {
-            uint8_t *addr = &abs_y;
+            uint8_t *addr = (uint8_t*)&abs_y;
             ret = addr[offset-8];
           }
           break;
@@ -213,7 +265,7 @@ void send_event(uint16_t type, uint16_t code, uint32_t value) {
     puts("key dropped, no buffer");
     return;
   }
-  struct virtio_input_event *evt = node->dest;
+  struct virtio_input_event *evt = (struct virtio_input_event*)node->dest;
   evt->type = type;
   evt->code = code;
   evt->value = value;
@@ -223,7 +275,7 @@ void send_event(uint16_t type, uint16_t code, uint32_t value) {
 }
 
 void HandleKey( int keycode, int bDown ) {
-  printf("virtio input HandleKey: %d %d\n", keycode, bDown);
+  //printf("virtio input HandleKey: %d %d\n", keycode, bDown);
   int key2 = key_translate[keycode];
   if (key2 == 0) {
     printf("%d not mapped\n", keycode);
