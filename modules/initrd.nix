@@ -15,6 +15,7 @@ let
         echo its a file $x
         ldso=$(patchelf --print-interpreter $x)
         cp $ldso $out/lib
+        chmod +w $out/lib/$(basename $ldso)
         chmod +w $x
         patchelf --set-interpreter $out/lib/$(basename $ldso) $x
       fi
