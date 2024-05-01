@@ -146,7 +146,7 @@ void virtio_input_init() {
 }
 
 uint32_t virtio_input_config_load(struct virtio_device *dev, uint32_t offset) {
-  printf("input cfg ld 0x%x\n", offset);
+  //printf("input cfg ld 0x%x\n", offset);
   uint32_t ret = 0;
 
   switch (offset) {
@@ -262,7 +262,7 @@ static void virtio_input_process_command(struct virtio_device *dev, struct virti
 void send_event(uint16_t type, uint16_t code, uint32_t value) {
   struct input_queue *node = virtio_input_queue_head;
   if (!node) {
-    puts("key dropped, no buffer");
+    //puts("key dropped, no buffer");
     return;
   }
   struct virtio_input_event *evt = (struct virtio_input_event*)node->dest;

@@ -18,6 +18,7 @@
 #include "rawdraw_sf.h"
 
 #include "virtio.h"
+#include "plic.h"
 
 // Just default RAM amount is 64MB.
 uint32_t ram_amt = 64*1024*1024;
@@ -56,14 +57,12 @@ const char * kernel_command_line = 0;
 
 bool want_exit = false;
 
-
-void virtio_maybe_clear_irq() {
-  // TODO, go over every virtio device and check if the condition is actually clear
-  clear_hart_irq(core, 9);
+void hart_raise_irq(int irq) {
+  raise_hart_irq(core, irq);
 }
 
-void virtio_raise_irq() {
-  raise_hart_irq(core, 9);
+void hart_clear_irq(int irq) {
+  clear_hart_irq(core, irq);
 }
 
 #define WEAK __attribute__((weak))
@@ -107,6 +106,8 @@ int main( int argc, char ** argv )
         bool enable_gfx = true;
         bool enable_virtio_blk = false;
         bool enable_virtio_input = true;
+        bool have_plic = true;
+
         virtio_input_init();
 
 	for( i = 1; i < argc; i++ )
@@ -218,14 +219,6 @@ restart:
 		else
 		{
 			// Load a default dtb.
-#if !defined(DTB_SUPPORT)
-			dtb_ptr = ram_amt - sizeof(default64mbdtb) - sizeof( struct MiniRV32IMAState );
-			memcpy( ram_image + dtb_ptr, default64mbdtb, sizeof( default64mbdtb ) );
-			if( kernel_command_line )
-			{
-				strncpy( (char*)( ram_image + dtb_ptr + 0xc0 ), kernel_command_line, 54 );
-			}
-#else
 			dtb_ptr = ram_amt - (64 * 1024);
 			memcpy(ram_image + dtb_ptr, default64mbdtb, sizeof( default64mbdtb ) );
                         void *v_fdt = ram_image + dtb_ptr;
@@ -275,21 +268,26 @@ restart:
                           fdt_setprop_u32(v_fdt, fb, "stride", 640*4);
                           fdt_setprop_string(v_fdt, fb, "format", "a8r8g8b8");
                         }
+                        if (have_plic) {
+                          int soc = fdt_path_offset(v_fdt, "/soc");
+                          int plic = fdt_add_subnode(v_fdt, soc, "plic");
+                          fdt_setprop_string(v_fdt, plic, "status", "okay");
+                        }
                         if (enable_virtio_blk) {
-                          struct virtio_device *virtio_dev = virtio_create(ram_image, &virtio_blk_type, 0x10010000, 0x200);
+                          struct virtio_device *virtio_dev = virtio_create(ram_image, &virtio_blk_type, 0x10010000, 0x200, 1);
                           int soc = fdt_path_offset(v_fdt, "/soc");
                           int virtio = fdt_add_subnode(v_fdt, soc, "virtio_blk");
                           fdt_appendprop_addrrange(v_fdt, soc, virtio, "reg", virtio_dev->reg_base, virtio_dev->reg_size);
-                          fdt_setprop_u32(v_fdt, virtio, "interrupts", 9);
+                          fdt_setprop_u32(v_fdt, virtio, "interrupts", 1);
                           fdt_setprop_string(v_fdt, virtio, "status", "okay");
                           fdt_setprop_string(v_fdt, virtio, "compatible", "virtio,mmio");
                         }
                         if (enable_virtio_input) {
-                          struct virtio_device *virtio_dev = virtio_create(ram_image, &virtio_input_type, 0x10020000, 0x200);
+                          struct virtio_device *virtio_dev = virtio_create(ram_image, &virtio_input_type, 0x10020000, 0x200, 2);
                           int soc = fdt_path_offset(v_fdt, "/soc");
                           int virtio = fdt_add_subnode(v_fdt, soc, "virtio_input");
                           fdt_appendprop_addrrange(v_fdt, soc, virtio, "reg", virtio_dev->reg_base, virtio_dev->reg_size);
-                          fdt_setprop_u32(v_fdt, virtio, "interrupts", 9);
+                          fdt_setprop_u32(v_fdt, virtio, "interrupts", 2);
                           fdt_setprop_string(v_fdt, virtio, "status", "okay");
                           fdt_setprop_string(v_fdt, virtio, "compatible", "virtio,mmio");
                         }
@@ -317,7 +315,6 @@ restart:
                             fdt_appendprop_addrrange(v_fdt, 0, memory, "reg", 0x80000000, ram_amt - (16*1024));
                           }
                         }
-#endif
 		}
 	}
 
@@ -582,14 +579,15 @@ static uint32_t HandleControlStore( uint32_t addy, uint32_t val )
   else if (addy == 0x10000002) {}
   else if (addy == 0x10000003) {}
   else if (addy == 0x10000004) {}
-  else {
+  else if ((addy >= 0x10400000) && addy < (0x10400000 + 0x4000000)) {
+    plic_store(addy - 0x10400000, val);
+  } else {
     bool handled = false;
     handled = virtio_store(addy, val);
     if (!handled) printf("HandleControlStore(0x%x, 0x%x)\n", addy, val);
   }
 	return 0;
 }
-
 
 static uint32_t HandleControlLoad( uint32_t addy )
 {
@@ -602,7 +600,9 @@ static uint32_t HandleControlLoad( uint32_t addy )
         else if (addy == 0x10000001) {}
         else if (addy == 0x10000002) {}
         else if (addy == 0x10000006) {}
-  else {
+  else if ((addy >= 0x10400000) && addy < (0x10400000 + 0x4000000)) {
+    ret = plic_load(addy - 0x10400000);
+  } else {
     ret = virtio_load(addy);
     //printf("HandleControlLoad(0x%x) == 0x%x\n", addy, ret);
   }

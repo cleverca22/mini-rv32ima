@@ -79,6 +79,7 @@ struct virtio_device {
   uint32_t reg_base;
   uint32_t reg_size;
   void *ram_image;
+  int irq;
   uint32_t DeviceID;          // 0x08
   uint32_t DeviceFeaturesSel; // 0x14
   uint32_t DriverFeaturesSel; // 0x24
@@ -91,7 +92,7 @@ struct virtio_device {
   int config_select, config_subsel;
 };
 
-struct virtio_device *virtio_create(void *ram_image, const virtio_device_type *type, uint32_t base, uint32_t size);
+struct virtio_device *virtio_create(void *ram_image, const virtio_device_type *type, uint32_t base, uint32_t size, int irq);
 void virtio_raise_irq();
 void virtio_maybe_clear_irq();
 void virtio_dump_all();

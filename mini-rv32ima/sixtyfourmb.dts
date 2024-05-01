@@ -5,7 +5,6 @@
 	#size-cells = <0x01>;
 	compatible = "riscv-minimal-nommu";
 	model = "riscv-minimal-nommu,qemu";
-        interrupt-parent = <&intc>;
 
 	chosen {
 		bootargs = "earlycon=uart8250,mmio,0x10000000,1000000 console=ttyS0";
@@ -30,7 +29,7 @@
 			riscv,isa = "rv32ima";
 			mmu-type = "riscv,none";
 
-			intc: interrupt-controller {
+			hart0_intc: interrupt-controller {
 				#interrupt-cells = <0x01>;
 				interrupt-controller;
 				compatible = "riscv,cpu-intc";
@@ -50,6 +49,7 @@
 	};
 
 	soc {
+                interrupt-parent = <&intc>;
 		#address-cells = <0x01>;
 		#size-cells = <0x01>;
 		compatible = "simple-bus";
@@ -82,9 +82,19 @@
 		};
 
 		clint@11000000 {
-			interrupts = <0x03 0x07>;
+                        interrupts-extended = <&hart0_intc 3>, <&hart0_intc 7>;
 			reg = <0x11000000 0x10000>;
 			compatible = "sifive,clint0", "riscv,clint0";
 		};
+                intc: plic@1c000000 {
+                  compatible = "sifive,plic-1.0.0";
+                  reg = <0x10400000 0x4000000>;
+                  #address-cells = <0>;
+                  #interrupt-cells = <1>;
+                  interrupt-controller;
+                  interrupts-extended = <&hart0_intc 11>;
+                  // status = "disabled";
+                  riscv,ndev = <32>;
+                };
 	};
 };

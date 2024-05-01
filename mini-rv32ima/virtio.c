@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #include "virtio.h"
+#include "plic.h"
 
 static struct virtio_device *virtio_devices[64];
 static int virtio_count = 0;
@@ -14,7 +15,7 @@ static uint32_t virtio_mmio_load(struct virtio_device *dev, uint32_t offset);
 
 // i think virtio_mmio in linux, automatically jams the entire queue full with requests for virtio_input_event objects
 // so it has guest ram assigned for every event it can receive at once
-struct virtio_device *virtio_create(void *ram_image, const virtio_device_type *type, uint32_t base, uint32_t size) {
+struct virtio_device *virtio_create(void *ram_image, const virtio_device_type *type, uint32_t base, uint32_t size, int irq) {
   int queues = type->queue_count;
   struct virtio_device *dev = malloc(sizeof(struct virtio_device));
   bzero(dev, sizeof(struct virtio_device));
@@ -23,6 +24,7 @@ struct virtio_device *virtio_create(void *ram_image, const virtio_device_type *t
   dev->reg_base = base;
   dev->reg_size = size;
   dev->ram_image = ram_image;
+  dev->irq = irq;
   dev->ConfigGeneration = 0;
   dev->queues = malloc(sizeof(virtio_queue) * queues);
   dev->queue_count = queues;
@@ -156,7 +158,7 @@ void virtio_flag_completion(struct virtio_device *dev, int queue, uint16_t start
   dev->queues[queue].write_ptr++;
   ring->idx = dev->queues[queue].write_ptr;
   dev->InterruptStatus |= 1;
-  virtio_raise_irq();
+  plic_raise_irq(dev->irq);
   //hexdump_ram(dev->ram_image, dev->queues[queue].QueueDeviceLow, 32);
   //printf(RED"command at idx %d completed into %d(%d), %d written\n"DEFAULT, start_idx, dev->queues[queue].write_ptr - 1, index, written);
 }
@@ -164,7 +166,7 @@ void virtio_flag_completion(struct virtio_device *dev, int queue, uint16_t start
 void virtio_config_changed(struct virtio_device *dev) {
   dev->ConfigGeneration++;
   dev->InterruptStatus |= 2;
-  virtio_raise_irq();
+  plic_raise_irq(dev->irq);
 }
 
 static void virtio_dump_rings(struct virtio_device *dev) {
@@ -245,7 +247,7 @@ static void virtio_mmio_store(struct virtio_device *dev, uint32_t offset, uint32
   case 0x64: // InterruptACK
     dev->InterruptStatus &= ~val;
     if (dev->InterruptStatus == 0) {
-      virtio_maybe_clear_irq();
+      plic_clear_irq(dev->irq);
     }
     break;
   case 0x70:

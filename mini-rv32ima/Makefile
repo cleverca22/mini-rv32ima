@@ -5,9 +5,9 @@ mini-rv32ima : mini-rv32ima.c mini-rv32ima.h default64mbdtc.h
 	gcc -o $@ $< -g -O2 -Wall
 	gcc -o $@.tiny $< -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -fwhole-program -s
 
-full-rv32ima: full-rv32ima.c mini-rv32ima.h default64mbdtc.h Makefile virtio.h virtio-input.c virtio-blk.c virtio.c
-	gcc -o $@ $< virtio-input.c virtio-blk.c virtio.c -g -O2 -Wall -lfdt -DDTB_SUPPORT -lX11 -ffunction-sections -fdata-sections -Wl,--gc-sections
-	gcc -o $@.noinline $< virtio-input.c virtio-blk.c virtio.c -g -Og -lfdt -DDTB_SUPPORT -lX11 -ffunction-sections -fdata-sections -Wl,--gc-sections -fno-inline-small-functions -fno-inline
+full-rv32ima: full-rv32ima.c mini-rv32ima.h default64mbdtc.h Makefile virtio.h virtio-input.c virtio-blk.c virtio.c plic.h plic.c
+	gcc -o $@ $< virtio-input.c virtio-blk.c virtio.c plic.c -g -O2 -Wall -lfdt -DDTB_SUPPORT -lX11 -ffunction-sections -fdata-sections -Wl,--gc-sections
+	gcc -o $@.noinline $< virtio-input.c virtio-blk.c virtio.c plic.c -g -Og -lfdt -DDTB_SUPPORT -lX11 -ffunction-sections -fdata-sections -Wl,--gc-sections -fno-inline-small-functions -fno-inline
 	mv new-sizes old-sizes || true
 	nm -S --size-sort $@.noinline | cut -d' ' -f2- > new-sizes
 	diff -u --color old-sizes new-sizes || true
