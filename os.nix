@@ -13,7 +13,7 @@ let
       nixpkgs.pkgs = (import nixpkgs {
         inherit system crossSystem;
         config = config.nixpkgs.config;
-        #overlays = config.nixpkgs.overlays;
+        overlays = config.nixpkgs.overlays;
       });
       #nixpkgs.localSystem = {
       #  inherit system;

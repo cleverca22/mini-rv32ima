@@ -44,7 +44,7 @@
         ${pkgs.mini-rv32ima}/bin/mini-rv32ima -f ${pkgs.rvkernel}/Image "$@"
       '';
       quicktest = pkgs.writeShellScriptBin "dotest" ''
-        ${pkgs.mini-rv32ima}/bin/fat-rv32ima -f ${os.kernel}/Image -i ${os.initrd}/initrd
+        ${pkgs.mini-rv32ima}/bin/full-rv32ima -f ${os.kernel}/Image -i ${os.initrd}/initrd
       '';
       os = pkgs.callPackage ./os.nix { inherit nixpkgs; };
     };

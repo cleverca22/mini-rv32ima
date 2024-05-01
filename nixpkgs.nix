@@ -37,6 +37,9 @@ in
 
 {
   options = {
+    nixpkgs.overlays = mkOption {
+      default = [];
+    };
 
     nixpkgs.config = mkOption {
       default = {};
