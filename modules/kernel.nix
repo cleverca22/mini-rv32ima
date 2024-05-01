@@ -18,7 +18,7 @@ let
       COREDUMP = no;
       CPU_FREQ = no;
       #CRYPTO = no;
-      CRYPTO_BLAKE2B = no;
+      CRYPTO_BLAKE2B = if block_support then yes else no;
       DRM = no;
       FB = yes;
       FB_SIMPLE = yes; # simple-framebuffer
@@ -27,7 +27,7 @@ let
       HID_SUPPORT = no;
       IKCONFIG = no;
       INPUT_EVDEV = yes; # /dev/input/event0
-      LIBCRC32C = no;
+      LIBCRC32C = if block_support then yes else no;
       MMC = no;
       MMU = no;
       MTD = no;
