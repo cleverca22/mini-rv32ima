@@ -4,6 +4,7 @@ with lib;
 
 let
   virtio = true;
+  block_support = true;
   kernel = pkgs.linux_latest.override {
     enableCommonConfig = false;
     autoModules = false;
@@ -11,7 +12,6 @@ let
       #MODULES = no; # TODO, breaks the nix build
       ARCH_RV32I = yes;
       BINFMT_ELF_FDPIC = yes;
-      BLOCK = no;
       BPF_SYSCALL = no;
       CGROUPS = no;
       CMODEL_MEDLOW = yes;
@@ -24,7 +24,9 @@ let
       FB_SIMPLE = yes; # simple-framebuffer
       FPU = no;
       FRAMEBUFFER_CONSOLE = yes; # render text on fb0
+      HID_SUPPORT = no;
       IKCONFIG = no;
+      INPUT_EVDEV = yes; # /dev/input/event0
       LIBCRC32C = no;
       MMC = no;
       MMU = no;
@@ -53,17 +55,19 @@ let
       SERIAL_OF_PLATFORM = yes;
       SMP = no;
       SND = no;
+      SOUND = no;
       SPI = no;
       SUSPEND = no;
       USB_SUPPORT = no;
       VIRTIO_MENU = no;
-      SOUND = no;
-      HID_SUPPORT = no;
+      BLOCK = if block_support then yes else no;
     } // lib.optionalAttrs config.kernel.bake_in_initrd {
       INITRAMFS_SOURCE = freeform "${config.system.build.initrd}/initrd.cpio";
     } // lib.optionalAttrs virtio {
-      VIRTIO_MENU = yes;
+      VIRTIO_BLK = if block_support then yes else no;
+      VIRTIO_CONSOLE = yes;
       VIRTIO_INPUT = yes;
+      VIRTIO_MENU = yes;
       VIRTIO_MMIO = yes;
     };
   };
