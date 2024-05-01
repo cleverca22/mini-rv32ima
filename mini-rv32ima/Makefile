@@ -5,12 +5,52 @@ mini-rv32ima : mini-rv32ima.c mini-rv32ima.h default64mbdtc.h
 	gcc -o $@ $< -g -O2 -Wall
 	gcc -o $@.tiny $< -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -fwhole-program -s
 
-full-rv32ima: full-rv32ima.c mini-rv32ima.h default64mbdtc.h Makefile virtio.h virtio-input.c virtio-blk.c virtio.c plic.h plic.c
-	gcc -o $@ $< virtio-input.c virtio-blk.c virtio.c plic.c -g -O2 -Wall -lfdt -DDTB_SUPPORT -lX11 -ffunction-sections -fdata-sections -Wl,--gc-sections
-	gcc -o $@.noinline $< virtio-input.c virtio-blk.c virtio.c plic.c -g -Og -lfdt -DDTB_SUPPORT -lX11 -ffunction-sections -fdata-sections -Wl,--gc-sections -fno-inline-small-functions -fno-inline
+SRCS := plic.c virtio.c virtio-blk.c virtio-input.c full-rv32ima.c
+OBJ := $(addsuffix .o, $(basename $(SRCS)))
+
+CFLAGS := -ffunction-sections -fdata-sections -Wall -Wstrict-prototypes
+LFLAGS := -lfdt -lX11 -Wl,--gc-sections
+
+ifeq ($(D),1)
+CFLAGS += -g -Og -fno-inline-small-functions
+else
+CFLAGS += -O2
+endif
+
+ifeq ($(HTTP),1)
+CFLAGS += -DCNFGHTTP
+endif
+
+full-rv32ima: $(OBJ) Makefile
+	gcc -o $@ $(OBJ) $(LFLAGS)
 	mv new-sizes old-sizes || true
-	nm -S --size-sort $@.noinline | cut -d' ' -f2- > new-sizes
+	nm -S --size-sort $@ | cut -d' ' -f2- > new-sizes
 	diff -u --color old-sizes new-sizes || true
+
+virtio-input.o: virtio-input.c virtio.h x11-key-lut.h plic.h
+virtio-blk.o: virtio-blk.c virtio.h
+virtio.o: virtio.c virtio.h plic.h
+plic.o: plic.c plic.h
+full-rv32ima.o: full-rv32ima.c default64mbdtc.h rawdraw_sf.h virtio.h plic.h
+
+amalgamation.c: $(SRCS)
+	cat $(SRCS) > $@
+
+full-rv32ima.wholeprog: amalgamation.c default64mbdtc.h rawdraw_sf.h virtio.h plic.h x11-key-lut.h
+	gcc -o $@ $< $(CFLAGS) $(LFLAGS) -fwhole-program
+	mv new-sizes.wp old-sizes.wp || true
+	nm -S --size-sort $@ | cut -d' ' -f2- > new-sizes.wp
+	diff -ui --color old-sizes.wp new-sizes.wp || true
+
+%.o: %.c
+	gcc -c -o $@ $< ${CFLAGS}
+
+gen-x11-lut: gen-x11-lut.c
+	gcc -o $@ $<
+
+x11-key-lut.h: gen-x11-lut
+	./gen-x11-lut > $@.temp
+	mv $@.temp $@
 
 mini-rv32ima.flt : mini-rv32ima.c mini-rv32ima.h
 	../buildroot/output/host/bin/riscv32-buildroot-linux-uclibc-gcc -O4 -funroll-loops -s -march=rv32ima -mabi=ilp32 -fPIC $< -Wl,-elf2flt=-r -o $@

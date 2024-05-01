@@ -93,15 +93,17 @@ struct virtio_device {
 };
 
 struct virtio_device *virtio_create(void *ram_image, const virtio_device_type *type, uint32_t base, uint32_t size, int irq);
-void virtio_raise_irq();
-void virtio_maybe_clear_irq();
-void virtio_dump_all();
+void virtio_raise_irq(void);
+void virtio_maybe_clear_irq(void);
+void virtio_dump_all(void);
 bool virtio_store(uint32_t addr, uint32_t val);
 uint32_t virtio_load(uint32_t addr);
 void *cast_guest_ptr(void *image, uint32_t addr);
 void virtio_flag_completion(struct virtio_device *dev, int queue, uint16_t start_idx, uint32_t written);
 void virtio_config_changed(struct virtio_device *dev);
-void virtio_input_init();
+struct virtio_device *virtio_input_create(void *ram_image);
+struct virtio_device *virtio_blk_create(void *ram_image);
+void virtio_add_dtb(struct virtio_device*, void *v_fdt);
 
 extern const virtio_device_type virtio_blk_type;
 extern const virtio_device_type virtio_input_type;

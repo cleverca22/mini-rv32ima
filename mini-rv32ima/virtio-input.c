@@ -7,6 +7,8 @@
 #include <string.h>
 #include <X11/keysymdef.h>
 #include "virtio.h"
+#include "x11-key-lut.h"
+#include "plic.h"
 
 struct input_queue {
   uint8_t *dest;
@@ -18,107 +20,6 @@ struct input_queue {
 
 struct input_queue *virtio_input_queue_head = NULL;
 
-static const uint16_t key_translate[65536] = {
-  [13] = KEY_ENTER,
-  [32] = KEY_SPACE,
-  [39] = KEY_LEFTCTRL,
-  [44] = KEY_COMMA,
-  [45] = KEY_MINUS,
-  [46] = KEY_DOT,
-  [47] = KEY_SLASH,
-  [48] = KEY_0,
-  [49] = KEY_1,
-  [50] = KEY_2,
-  [51] = KEY_3,
-  [52] = KEY_4,
-  [53] = KEY_5,
-  [54] = KEY_6,
-  [55] = KEY_7,
-  [56] = KEY_8,
-  [57] = KEY_9,
-  [59] = KEY_SEMICOLON,
-  [61] = KEY_EQUAL,
-  [65] = KEY_A,
-  [66] = KEY_B,
-  [91] = KEY_LEFTBRACE,
-  [92] = KEY_BACKSLASH,
-  [93] = KEY_RIGHTBRACE,
-  [96] = KEY_GRAVE,
-  [97] = KEY_A,
-  [98] = KEY_B,
-  [99] = KEY_C,
-  [100] = KEY_D,
-  [101] = KEY_E,
-  [102] = KEY_F,
-  [103] = KEY_G,
-  [104] = KEY_H,
-  [105] = KEY_I,
-  [106] = KEY_J,
-  [107] = KEY_K,
-  [108] = KEY_L,
-  [109] = KEY_M,
-  [110] = KEY_N,
-  [111] = KEY_O,
-  [112] = KEY_P,
-  [113] = KEY_Q,
-  [114] = KEY_R,
-  [115] = KEY_S,
-  [116] = KEY_T,
-  [117] = KEY_U,
-  [118] = KEY_V,
-  [119] = KEY_W,
-  [120] = KEY_X,
-  [121] = KEY_Y,
-  [122] = KEY_Z,
-  [65288] = KEY_BACKSPACE,
-  [65289] = KEY_TAB,
-  [65293] = KEY_ENTER,
-  [65299] = KEY_PAUSE,
-  [65300] = KEY_SCROLLLOCK,
-  [65307] = KEY_ESC,
-  [65360] = KEY_HOME,
-  [65361] = KEY_LEFT,
-  [65362] = KEY_UP,
-  [65363] = KEY_RIGHT,
-  [65364] = KEY_DOWN,
-  [65365] = KEY_PAGEUP,
-  [65366] = KEY_PAGEDOWN,
-  [65367] = KEY_END,
-  [65379] = KEY_INSERT,
-  [65383] = KEY_COMPOSE,
-  [65407] = KEY_NUMLOCK,
-
-  [65421] = KEY_KPENTER,
-  [65429] = KEY_KP7,
-  [65430] = KEY_KP4,
-  [65431] = KEY_KP8,
-  [65432] = KEY_KP6,
-  [65433] = KEY_KP2,
-  [65434] = KEY_KP9,
-  [65435] = KEY_KP3,
-  [65436] = KEY_KP1,
-  [65437] = KEY_KP5,
-  [65438] = KEY_KP0,
-  [65439] = KEY_KPDOT,
-  [65450] = KEY_KPASTERISK,
-  [65451] = KEY_KPPLUS,
-  [65453] = KEY_KPMINUS,
-  [65455] = KEY_KPSLASH,
-
-  [65470] = KEY_F1,
-  [65481] = KEY_F12,
-  [65505] = KEY_LEFTSHIFT,
-  [65506] = KEY_RIGHTSHIFT,
-  [65507] = KEY_LEFTCTRL,
-  [65509] = KEY_CAPSLOCK,
-  [65513] = KEY_LEFTALT,
-  [65514] = KEY_RIGHTALT,
-  [65515] = KEY_LEFTMETA,
-  [65516] = KEY_RIGHTMETA,
-  [65535] = KEY_DELETE,
-};
-
-static uint8_t key_bitmap[16];
 static uint8_t axis_bitmap[1] = { 3 };
 static const struct virtio_input_absinfo abs_x = {
   .min = 0,
@@ -128,22 +29,6 @@ static const struct virtio_input_absinfo abs_y = {
   .min = 0,
   .max = 480,
 };
-
-void virtio_input_init() {
-  for (int i=0; i < (sizeof(key_translate)/sizeof(key_translate[0])); i++) {
-    if (key_translate[i]) {
-      unsigned int code = key_translate[i];
-      unsigned int byte = code / 8;
-      unsigned int bit = code % 8;
-      printf("rawdraw:%u linux:%u byte:%u bit:%u\n", i, code, byte, bit);
-      assert(byte < sizeof(key_bitmap));
-      key_bitmap[byte] |= 1<<bit;
-    }
-  }
-  for (int i=0; i<sizeof(key_bitmap); i++) {
-    printf("%d %02x\n", i, key_bitmap[i]);
-  }
-}
 
 uint32_t virtio_input_config_load(struct virtio_device *dev, uint32_t offset) {
   //printf("input cfg ld 0x%x\n", offset);
@@ -160,7 +45,7 @@ uint32_t virtio_input_config_load(struct virtio_device *dev, uint32_t offset) {
       // value returned at 0x108, should be a bitmap, of every code (KEY_C or REL_X) the device supports
       switch (dev->config_subsel) {
       case EV_KEY:
-        ret = sizeof(key_bitmap); // device can send keys, and the bitmap of supported keys is 4 bytes
+        ret = sizeof(valid_keys_bitmap); // device can send keys, and the bitmap of supported keys is $ret bytes
         break;
       case EV_ABS:
         ret = sizeof(axis_bitmap);
@@ -192,8 +77,8 @@ uint32_t virtio_input_config_load(struct virtio_device *dev, uint32_t offset) {
       case 0x11: // bitmap of key codes device supports
         switch (dev->config_subsel) {
         case EV_KEY:
-          if ((offset-8) < sizeof(key_bitmap)) {
-            ret = key_bitmap[offset-8];
+          if ((offset-8) < sizeof(valid_keys_bitmap)) {
+            ret = valid_keys_bitmap[offset-8];
           }
           break;
         case EV_ABS:
@@ -274,14 +159,19 @@ void send_event(uint16_t type, uint16_t code, uint32_t value) {
   free(node);
 }
 
+#define VIRTIO_WEAK_HACK
+// WEAK only works at link time
+// if you cat *.c > foo.c, then gcc complains about the duplicates
+// this flag tells the dups to go away
+
 void HandleKey( int keycode, int bDown ) {
   //printf("virtio input HandleKey: %d %d\n", keycode, bDown);
-  int key2 = key_translate[keycode];
-  if (key2 == 0) {
-    printf("%d not mapped\n", keycode);
+  int linux_code = translate_keycode(keycode);
+  if (linux_code == 0) {
+    printf("%d 0x%x not mapped\n", keycode, keycode);
     return;
   }
-  send_event(EV_KEY, key2, bDown);
+  send_event(EV_KEY, linux_code, bDown);
   send_event(EV_SYN, 0, 0);
 }
 
@@ -298,3 +188,7 @@ const virtio_device_type virtio_input_type = {
   .config_store = virtio_input_config_store,
   .process_command = virtio_input_process_command,
 };
+
+struct virtio_device *virtio_input_create(void *ram_image) {
+  return virtio_create(ram_image, &virtio_input_type, 0x10020000, 0x200, get_next_irq());
+}

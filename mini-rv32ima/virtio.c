@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stdio.h>
+#include <libfdt.h>
 
 #include "virtio.h"
 #include "plic.h"
@@ -340,4 +341,14 @@ static uint32_t virtio_mmio_load(struct virtio_device *dev, uint32_t offset) {
   }
   //printf("virtio%d_load(0x%x) == 0x%x\n", dev->index, offset, ret);
   return ret;
+}
+
+void virtio_add_dtb(struct virtio_device *dev, void *v_fdt) {
+  int soc = fdt_path_offset(v_fdt, "/soc");
+  char buffer[32];
+  snprintf(buffer, 32, "virtio@%x", dev->reg_base);
+  int virtio = fdt_add_subnode(v_fdt, soc, buffer);
+  fdt_appendprop_addrrange(v_fdt, soc, virtio, "reg", dev->reg_base, dev->reg_size);
+  fdt_setprop_u32(v_fdt, virtio, "interrupts", dev->irq);
+  fdt_setprop_string(v_fdt, virtio, "compatible", "virtio,mmio");
 }

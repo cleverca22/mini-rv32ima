@@ -10,6 +10,8 @@ static const uint32_t irq_mask = 0xffffffff;
 static uint32_t irq_pending = 0;
 static uint32_t irq_claimed = 0;
 
+int next_irq = 1;
+
 uint32_t plic_load(uint32_t addr) {
   uint32_t ret = 0;
   if ((addr >= CONTEXT_BASE) && (addr < (CONTEXT_BASE + CONTEXT_SIZE))) { // context 0

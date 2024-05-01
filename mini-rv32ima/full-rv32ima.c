@@ -13,7 +13,6 @@
 
 // #define CNFGOGL
 #define CNFG_IMPLEMENTATION
-// #define CNFGHTTP
 
 #include "rawdraw_sf.h"
 
@@ -25,17 +24,17 @@ uint32_t ram_amt = 64*1024*1024;
 int fail_on_all_faults = 0;
 
 static int64_t SimpleReadNumberInt( const char * number, int64_t defaultNumber );
-static uint64_t GetTimeMicroseconds();
-static void ResetKeyboardInput();
-static void CaptureKeyboardInput();
+static uint64_t GetTimeMicroseconds(void);
+static void ResetKeyboardInput(void);
+static void CaptureKeyboardInput(void);
 static uint32_t HandleException( uint32_t ir, uint32_t retval );
 static uint32_t HandleControlStore( uint32_t addy, uint32_t val );
 static uint32_t HandleControlLoad( uint32_t addy );
 static void HandleOtherCSRWrite( uint8_t * image, uint16_t csrno, uint32_t value );
 static int32_t HandleOtherCSRRead( uint8_t * image, uint16_t csrno );
-static void MiniSleep();
-static int IsKBHit();
-static int ReadKBByte();
+static void MiniSleep(void);
+static int IsKBHit(void);
+static int ReadKBByte(void);
 
 // This is the functionality we want to override in the emulator.
 //  think of this as the way the emulator's processor is connected to the outside world.
@@ -68,16 +67,19 @@ void hart_clear_irq(int irq) {
 #define WEAK __attribute__((weak))
 
 // defined as WEAK, so virtio-input can steal them, but if you comment out input, they have a fallback
+
+#ifndef VIRTIO_WEAK_HACK
 void WEAK HandleKey( int keycode, int bDown ) {
   printf("HandleKey: %d %d\n", keycode, bDown);
-}
-void WEAK HandleButton( int x, int y, int button, int bDown ) {
-  printf("HandleButton(%d, %d, %d, %d)\n", x, y, button, bDown);
 }
 void WEAK HandleMotion( int x, int y, int mask ) {
   //printf("HandleMotion(%d, %d, %d)\n", x, y, mask);
 }
-int HandleDestroy() {
+#endif
+void WEAK HandleButton( int x, int y, int button, int bDown ) {
+  printf("HandleButton(%d, %d, %d, %d)\n", x, y, button, bDown);
+}
+int HandleDestroy(void) {
   puts(__func__);
   return 0;
 }
@@ -104,11 +106,9 @@ int main( int argc, char ** argv )
         const char *initrd_name = NULL;
 	const char * dtb_file_name = 0;
         bool enable_gfx = true;
-        bool enable_virtio_blk = false;
+        bool enable_virtio_blk = true;
         bool enable_virtio_input = true;
         bool have_plic = true;
-
-        virtio_input_init();
 
 	for( i = 1; i < argc; i++ )
 	{
@@ -274,22 +274,12 @@ restart:
                           fdt_setprop_string(v_fdt, plic, "status", "okay");
                         }
                         if (enable_virtio_blk) {
-                          struct virtio_device *virtio_dev = virtio_create(ram_image, &virtio_blk_type, 0x10010000, 0x200, 1);
-                          int soc = fdt_path_offset(v_fdt, "/soc");
-                          int virtio = fdt_add_subnode(v_fdt, soc, "virtio_blk");
-                          fdt_appendprop_addrrange(v_fdt, soc, virtio, "reg", virtio_dev->reg_base, virtio_dev->reg_size);
-                          fdt_setprop_u32(v_fdt, virtio, "interrupts", 1);
-                          fdt_setprop_string(v_fdt, virtio, "status", "okay");
-                          fdt_setprop_string(v_fdt, virtio, "compatible", "virtio,mmio");
+                          struct virtio_device *virtio_blk = virtio_blk_create(ram_image);
+                          virtio_add_dtb(virtio_blk, v_fdt);
                         }
                         if (enable_virtio_input) {
-                          struct virtio_device *virtio_dev = virtio_create(ram_image, &virtio_input_type, 0x10020000, 0x200, 2);
-                          int soc = fdt_path_offset(v_fdt, "/soc");
-                          int virtio = fdt_add_subnode(v_fdt, soc, "virtio_input");
-                          fdt_appendprop_addrrange(v_fdt, soc, virtio, "reg", virtio_dev->reg_base, virtio_dev->reg_size);
-                          fdt_setprop_u32(v_fdt, virtio, "interrupts", 2);
-                          fdt_setprop_string(v_fdt, virtio, "status", "okay");
-                          fdt_setprop_string(v_fdt, virtio, "compatible", "virtio,mmio");
+                          struct virtio_device *virtio_input = virtio_input_create(ram_image);
+                          virtio_add_dtb(virtio_input, v_fdt);
                         }
                         int chosen = fdt_path_offset(v_fdt, "/chosen");
                         if (chosen < 0) {
@@ -488,13 +478,13 @@ static int ReadKBByte()
 #include <signal.h>
 #include <sys/time.h>
 
-static void CtrlC()
+static void CtrlC(int)
 {
   want_exit = true;
 }
 
 // Override keyboard, so we can capture all keyboard input for the VM.
-static void CaptureKeyboardInput()
+static void CaptureKeyboardInput(void)
 {
 	// Hook exit, because we want to re-enable keyboard.
 	atexit(ResetKeyboardInput);
@@ -506,7 +496,7 @@ static void CaptureKeyboardInput()
 	tcsetattr(0, TCSANOW, &term);
 }
 
-static void ResetKeyboardInput()
+static void ResetKeyboardInput(void)
 {
 	// Re-enable echo, etc. on keyboard.
 	struct termios term;
@@ -515,12 +505,12 @@ static void ResetKeyboardInput()
 	tcsetattr(0, TCSANOW, &term);
 }
 
-static void MiniSleep()
+static void MiniSleep(void)
 {
 	usleep(500);
 }
 
-static uint64_t GetTimeMicroseconds()
+static uint64_t GetTimeMicroseconds(void)
 {
 	struct timeval tv;
 	gettimeofday( &tv, 0 );
@@ -529,7 +519,7 @@ static uint64_t GetTimeMicroseconds()
 
 static int is_eofd;
 
-static int ReadKBByte()
+static int ReadKBByte(void)
 {
 	if( is_eofd ) return 0xffffffff;
 	char rxchar = 0;
@@ -541,7 +531,7 @@ static int ReadKBByte()
 		return -1;
 }
 
-static int IsKBHit()
+static int IsKBHit(void)
 {
 	if( is_eofd ) return -1;
 	int byteswaiting;

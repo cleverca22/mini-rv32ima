@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "virtio.h"
+#include "plic.h"
 
 // TODO, just #include them from linux headers?
 struct virtio_blk_req {
@@ -102,3 +103,7 @@ const virtio_device_type virtio_blk_type = {
   .config_store = virtio_blk_config_store,
   .process_command = virtio_blk_process_command,
 };
+
+struct virtio_device *virtio_blk_create(void *ram_image) {
+  return virtio_create(ram_image, &virtio_blk_type, 0x10010000, 0x200, get_next_irq());
+}
