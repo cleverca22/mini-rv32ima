@@ -18,6 +18,7 @@
 
 #include "virtio.h"
 #include "plic.h"
+#include "mmio.h"
 
 // Just default RAM amount is 64MB.
 uint32_t ram_amt = 64*1024*1024;
@@ -35,6 +36,8 @@ static int32_t HandleOtherCSRRead( uint8_t * image, uint16_t csrno );
 static void MiniSleep(void);
 static int IsKBHit(void);
 static int ReadKBByte(void);
+static uint32_t uart_load(void *state, uint32_t addr);
+static void uart_store(void *state, uint32_t addr, uint32_t val);
 
 // This is the functionality we want to override in the emulator.
 //  think of this as the way the emulator's processor is connected to the outside world.
@@ -93,60 +96,54 @@ void *cast_guest_ptr(void *image, uint32_t addr) {
 
 int main( int argc, char ** argv )
 {
-	int i;
-        int image_size = 0;
-	long long instct = -1;
-	int show_help = 0;
-	int time_divisor = 1;
-	int fixed_update = 0;
-	int do_sleep = 1;
-	int single_step = 0;
-	int dtb_ptr = 0;
-	const char * image_file_name = 0;
-        const char *initrd_name = NULL;
-	const char * dtb_file_name = 0;
-        bool enable_gfx = true;
-        bool enable_virtio_blk = true;
-        bool enable_virtio_input = true;
-        bool have_plic = true;
+  int i;
+  int image_size = 0;
+  long long instct = -1;
+  int show_help = 0;
+  int time_divisor = 1;
+  int fixed_update = 0;
+  int do_sleep = 1;
+  int single_step = 0;
+  int dtb_ptr = 0;
+  const char * image_file_name = 0;
+  const char *initrd_name = NULL;
+  const char * dtb_file_name = 0;
+  bool enable_gfx = true;
+  bool enable_virtio_blk = true;
+  bool enable_virtio_input = true;
+  bool have_plic = true;
 
-	for( i = 1; i < argc; i++ )
-	{
-		const char * param = argv[i];
-		int param_continue = 0; // Can combine parameters, like -lpt x
-		do
-		{
-			if( param[0] == '-' || param_continue )
-			{
-				switch( param[1] )
-				{
-				case 'm': if( ++i < argc ) ram_amt = SimpleReadNumberInt( argv[i], ram_amt ); break;
-				case 'c': if( ++i < argc ) instct = SimpleReadNumberInt( argv[i], -1 ); break;
-				case 'k': if( ++i < argc ) kernel_command_line = argv[i]; break;
-				case 'f': image_file_name = (++i<argc)?argv[i]:0; break;
-                                case 'i': initrd_name = (++i<argc)?argv[i]:0; break;
-				case 'b': dtb_file_name = (++i<argc)?argv[i]:0; break;
-				case 'l': param_continue = 1; fixed_update = 1; break;
-				case 'p': param_continue = 1; do_sleep = 0; break;
-				case 's': param_continue = 1; single_step = 1; break;
-				case 'd': param_continue = 1; fail_on_all_faults = 1; break; 
-				case 't': if( ++i < argc ) time_divisor = SimpleReadNumberInt( argv[i], 1 ); break;
-				default:
-					if( param_continue )
-						param_continue = 0;
-					else
-						show_help = 1;
-					break;
-				}
-			}
-			else
-			{
-				show_help = 1;
-				break;
-			}
-			param++;
-		} while( param_continue );
-	}
+  for( i = 1; i < argc; i++ ) {
+    const char * param = argv[i];
+    int param_continue = 0; // Can combine parameters, like -lpt x
+    do {
+      if( param[0] == '-' || param_continue ) {
+        switch( param[1] ) {
+        case 'm': if( ++i < argc ) ram_amt = SimpleReadNumberInt( argv[i], ram_amt ); break;
+        case 'c': if( ++i < argc ) instct = SimpleReadNumberInt( argv[i], -1 ); break;
+        case 'k': if( ++i < argc ) kernel_command_line = argv[i]; break;
+        case 'f': image_file_name = (++i<argc)?argv[i]:0; break;
+        case 'i': initrd_name = (++i<argc)?argv[i]:0; break;
+        case 'b': dtb_file_name = (++i<argc)?argv[i]:0; break;
+        case 'l': param_continue = 1; fixed_update = 1; break;
+        case 'p': param_continue = 1; do_sleep = 0; break;
+        case 's': param_continue = 1; single_step = 1; break;
+        case 'd': param_continue = 1; fail_on_all_faults = 1; break; 
+        case 't': if( ++i < argc ) time_divisor = SimpleReadNumberInt( argv[i], 1 ); break;
+        default:
+          if( param_continue )
+            param_continue = 0;
+          else
+            show_help = 1;
+          break;
+        }
+      } else {
+        show_help = 1;
+        break;
+      }
+      param++;
+    } while( param_continue );
+  }
 	if( show_help || image_file_name == 0 || time_divisor <= 0 )
 	{
 		fprintf( stderr, "./mini-rv32imaf [parameters]\n\t-m [ram amount]\n\t-f [running image]\n\t-k [kernel command line]\n\t-b [dtb file, or 'disable']\n\t-c instruction count\n\t-s single step with full processor state\n\t-t time divion base\n\t-l lock time base to instruction count\n\t-p disable sleep when wfi\n\t-d fail out immediately on all faults\n" );
@@ -157,12 +154,11 @@ int main( int argc, char ** argv )
           CNFGSetup("full-rv32ima", 640, 480);
         }
 
-	ram_image = malloc( ram_amt );
-	if( !ram_image )
-	{
-		fprintf( stderr, "Error: could not allocate system image.\n" );
-		return -4;
-	}
+  ram_image = malloc( ram_amt );
+  if( !ram_image ) {
+    fprintf( stderr, "Error: could not allocate system image.\n" );
+    return -4;
+  }
 
 restart:
 	{
@@ -272,14 +268,17 @@ restart:
                           int soc = fdt_path_offset(v_fdt, "/soc");
                           int plic = fdt_add_subnode(v_fdt, soc, "plic");
                           fdt_setprop_string(v_fdt, plic, "status", "okay");
+                          mmio_add_handler(0x10400000, 0x4000000, plic_load, plic_store, NULL);
                         }
                         if (enable_virtio_blk) {
                           struct virtio_device *virtio_blk = virtio_blk_create(ram_image);
                           virtio_add_dtb(virtio_blk, v_fdt);
+                          mmio_add_handler(virtio_blk->reg_base, virtio_blk->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_blk);
                         }
                         if (enable_virtio_input) {
                           struct virtio_device *virtio_input = virtio_input_create(ram_image);
                           virtio_add_dtb(virtio_input, v_fdt);
+                          mmio_add_handler(virtio_input->reg_base, virtio_input->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_input);
                         }
                         int chosen = fdt_path_offset(v_fdt, "/chosen");
                         if (chosen < 0) {
@@ -308,6 +307,7 @@ restart:
 		}
 	}
 
+        mmio_add_handler(0x10000000, 0x100, uart_load, uart_store, NULL);
 	CaptureKeyboardInput();
 
 	// The core lives at the end of RAM.
@@ -558,45 +558,41 @@ static uint32_t HandleException( uint32_t ir, uint32_t code )
 	return code;
 }
 
-static uint32_t HandleControlStore( uint32_t addy, uint32_t val )
-{
-  if( addy == 0x10000000 ) //UART 8250 / 16550 Data Buffer
-  {
-    printf("%c", val);
-    fflush( stdout );
+// Emulating a 8250 / 16550 UART
+static uint32_t uart_load(void *state, uint32_t addr) {
+  uint32_t ret = 0;
+  switch (addr) {
+  case 0:
+    if (IsKBHit()) ret = ReadKBByte();
+    break;
+  case 5:
+    ret = 0x60 | IsKBHit();
+    break;
   }
-  else if (addy == 0x10000001) {}
-  else if (addy == 0x10000002) {}
-  else if (addy == 0x10000003) {}
-  else if (addy == 0x10000004) {}
-  else if ((addy >= 0x10400000) && addy < (0x10400000 + 0x4000000)) {
-    plic_store(addy - 0x10400000, val);
-  } else {
-    bool handled = false;
-    handled = virtio_store(addy, val);
-    if (!handled) printf("HandleControlStore(0x%x, 0x%x)\n", addy, val);
-  }
-	return 0;
+  return ret;
 }
 
-static uint32_t HandleControlLoad( uint32_t addy )
-{
-  uint32_t ret = 0;
-	// Emulating a 8250 / 16550 UART
-	if( addy == 0x10000005 )
-		ret = 0x60 | IsKBHit();
-	else if( addy == 0x10000000 && IsKBHit() )
-		ret = ReadKBByte();
-        else if (addy == 0x10000001) {}
-        else if (addy == 0x10000002) {}
-        else if (addy == 0x10000006) {}
-  else if ((addy >= 0x10400000) && addy < (0x10400000 + 0x4000000)) {
-    ret = plic_load(addy - 0x10400000);
-  } else {
-    ret = virtio_load(addy);
-    //printf("HandleControlLoad(0x%x) == 0x%x\n", addy, ret);
+static void uart_store(void *state, uint32_t addr, uint32_t val) {
+  switch (addr) {
+  case 0: //UART 8250 / 16550 Data Buffer
+    printf("%c", val);
+    fflush( stdout );
+    break;
   }
-	return ret;
+}
+
+static uint32_t HandleControlStore( uint32_t addy, uint32_t val )
+{
+  mmio_routed_store(addy, val);
+  //printf("HandleControlStore(0x%x, 0x%x)\n", addy, val);
+  return 0;
+}
+
+static uint32_t HandleControlLoad( uint32_t addy ) {
+  uint32_t ret = 0;
+  ret = mmio_routed_load(addy);
+  //printf("HandleControlLoad(0x%x) == 0x%x\n", addy, ret);
+  return ret;
 }
 
 static void HandleOtherCSRWrite( uint8_t * image, uint16_t csrno, uint32_t value )

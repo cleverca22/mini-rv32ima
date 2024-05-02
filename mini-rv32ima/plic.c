@@ -12,7 +12,7 @@ static uint32_t irq_claimed = 0;
 
 int next_irq = 1;
 
-uint32_t plic_load(uint32_t addr) {
+uint32_t plic_load(void* state, uint32_t addr) {
   uint32_t ret = 0;
   if ((addr >= CONTEXT_BASE) && (addr < (CONTEXT_BASE + CONTEXT_SIZE))) { // context 0
     uint32_t context_offset = addr - CONTEXT_BASE;
@@ -33,7 +33,7 @@ uint32_t plic_load(uint32_t addr) {
   return ret;
 }
 
-void plic_store(uint32_t addr, uint32_t val) {
+void plic_store(void *state, uint32_t addr, uint32_t val) {
   //printf("plic_store(0x%x, %d)\n", addr, val);
   if ((addr >= CONTEXT_BASE) && (addr < (CONTEXT_BASE + CONTEXT_SIZE))) { // context 0
     uint32_t context_offset = addr - CONTEXT_BASE;

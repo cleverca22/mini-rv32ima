@@ -11,8 +11,6 @@
 static struct virtio_device *virtio_devices[64];
 static int virtio_count = 0;
 
-static void virtio_mmio_store(struct virtio_device *dev, uint32_t offset, uint32_t val);
-static uint32_t virtio_mmio_load(struct virtio_device *dev, uint32_t offset);
 
 // i think virtio_mmio in linux, automatically jams the entire queue full with requests for virtio_input_event objects
 // so it has guest ram assigned for every event it can receive at once
@@ -183,34 +181,8 @@ void virtio_dump_all() {
   }
 }
 
-bool virtio_store(uint32_t addr, uint32_t val) {
-  bool handled = false;
-  for (int n=0; n<virtio_count; n++) {
-    uint32_t base = virtio_devices[n]->reg_base;
-    uint32_t size = virtio_devices[n]->reg_size;
-    if ((addr >= base) && (addr < (base+size))) {
-      virtio_mmio_store(virtio_devices[n], addr - base, val);
-      handled = true;
-      break;
-    }
-  }
-  return handled;
-}
-
-uint32_t virtio_load(uint32_t addr) {
-  uint32_t ret = 0;
-  for (int n=0; n<virtio_count; n++) {
-    uint32_t base = virtio_devices[n]->reg_base;
-    uint32_t size = virtio_devices[n]->reg_size;
-    if ((addr >= base) && (addr < (base+size))) {
-      ret = virtio_mmio_load(virtio_devices[n], addr - base);
-      break;
-    }
-  }
-  return ret;
-}
-
-static void virtio_mmio_store(struct virtio_device *dev, uint32_t offset, uint32_t val) {
+void virtio_mmio_store(void *state, uint32_t offset, uint32_t val) {
+  struct virtio_device *dev = state;
   //printf("virtio%d_store(0x%x, 0x%x)\n", dev->index, offset, val);
   switch (offset) {
   case 0x14:
@@ -291,7 +263,8 @@ static void virtio_mmio_store(struct virtio_device *dev, uint32_t offset, uint32
   }
 }
 
-static uint32_t virtio_mmio_load(struct virtio_device *dev, uint32_t offset) {
+uint32_t virtio_mmio_load(void *state, uint32_t offset) {
+  struct virtio_device *dev = state;
   uint32_t ret = 0;
   switch (offset) {
   case 0: // MagicValue

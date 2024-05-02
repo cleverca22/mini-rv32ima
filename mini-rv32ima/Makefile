@@ -5,7 +5,7 @@ mini-rv32ima : mini-rv32ima.c mini-rv32ima.h default64mbdtc.h
 	gcc -o $@ $< -g -O2 -Wall
 	gcc -o $@.tiny $< -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -fwhole-program -s
 
-SRCS := plic.c virtio.c virtio-blk.c virtio-input.c full-rv32ima.c
+SRCS := plic.c virtio.c virtio-blk.c virtio-input.c full-rv32ima.c mmio.c
 OBJ := $(addsuffix .o, $(basename $(SRCS)))
 
 CFLAGS := -ffunction-sections -fdata-sections -Wall -Wstrict-prototypes
@@ -31,7 +31,7 @@ virtio-input.o: virtio-input.c virtio.h x11-key-lut.h plic.h
 virtio-blk.o: virtio-blk.c virtio.h
 virtio.o: virtio.c virtio.h plic.h
 plic.o: plic.c plic.h
-full-rv32ima.o: full-rv32ima.c default64mbdtc.h rawdraw_sf.h virtio.h plic.h
+full-rv32ima.o: full-rv32ima.c default64mbdtc.h rawdraw_sf.h virtio.h plic.h mmio.h
 
 amalgamation.c: $(SRCS)
 	cat $(SRCS) > $@

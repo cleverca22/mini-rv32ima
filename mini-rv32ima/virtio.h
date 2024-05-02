@@ -96,8 +96,13 @@ struct virtio_device *virtio_create(void *ram_image, const virtio_device_type *t
 void virtio_raise_irq(void);
 void virtio_maybe_clear_irq(void);
 void virtio_dump_all(void);
+
 bool virtio_store(uint32_t addr, uint32_t val);
 uint32_t virtio_load(uint32_t addr);
+
+void virtio_mmio_store(void *dev, uint32_t offset, uint32_t val);
+uint32_t virtio_mmio_load(void *dev, uint32_t offset);
+
 void *cast_guest_ptr(void *image, uint32_t addr);
 void virtio_flag_completion(struct virtio_device *dev, int queue, uint16_t start_idx, uint32_t written);
 void virtio_config_changed(struct virtio_device *dev);
