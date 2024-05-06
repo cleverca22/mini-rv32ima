@@ -3,6 +3,7 @@
 with lib;
 
 let
+  cfg = config.kernel;
   virtio = true;
   block_support = true;
   kernel = pkgs.linux_latest.override {
@@ -23,7 +24,7 @@ let
       FB = yes;
       FB_SIMPLE = yes; # simple-framebuffer
       FPU = no;
-      FRAMEBUFFER_CONSOLE = yes; # render text on fb0
+      FRAMEBUFFER_CONSOLE = if cfg.fb_console then yes else no; # render text on fb0
       HID_SUPPORT = no;
       IKCONFIG = no;
       INPUT_EVDEV = yes; # /dev/input/event0
@@ -73,9 +74,15 @@ let
   };
 in {
   options = {
-    kernel.bake_in_initrd = mkOption {
-      default = false;
-      type = types.bool;
+    kernel = {
+      bake_in_initrd = mkOption {
+        default = false;
+        type = types.bool;
+      };
+      fb_console = mkOption {
+        default = true;
+        type = types.bool;
+      };
     };
   };
   config = {

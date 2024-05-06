@@ -33,6 +33,7 @@ let
       CONFIG_SLEEP y
       CONFIG_SORT y
       CONFIG_TAIL y
+      CONFIG_TTY y
       CONFIG_TRACEROUTE n
       CONFIG_TRACEROUTE6 n
       CONFIG_UDHCPC n

@@ -65,7 +65,7 @@ let
       #exec /bin/sh
       getty -n -l /bin/sh 9600 /dev/ttyAMA0 &
       getty -n -l /bin/sh 9600 /dev/tty1 &
-      fbdoom -mb 2 -iwad /doom2.wad
+      fbdoom -mb 2 -iwad /doom2.wad -playdemo demo.lmp
     '';
     destination = "/init";
   };
@@ -91,6 +91,10 @@ let
       {
         object = ../DOOM2.WAD;
         symlink = "/doom2.wad";
+      }
+      {
+        object = ../CS01-009.LMP;
+        symlink = "/demo.lmp";
       }
     ];
   };

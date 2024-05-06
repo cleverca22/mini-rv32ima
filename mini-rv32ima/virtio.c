@@ -29,6 +29,7 @@ struct virtio_device *virtio_create(void *ram_image, const virtio_device_type *t
   dev->queue_count = queues;
   for (int i=0; i<queues; i++) {
     dev->queues[i].QueueReady = 0;
+    dev->queues[i].write_ptr = 0;
   }
   virtio_devices[virtio_count] = dev;
   virtio_count++;
