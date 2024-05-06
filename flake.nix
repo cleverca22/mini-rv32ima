@@ -59,5 +59,8 @@
         '';
       });
     };
+    hydraJobs = {
+      inherit (self.${system}.packages.os) initrd;
+    };
   });
 }

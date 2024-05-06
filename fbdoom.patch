@@ -1,0 +1,14 @@
+diff --git a/fbdoom/i_timer.c b/fbdoom/i_timer.c
+index 081b38e..1fe2a7c 100644
+--- a/fbdoom/i_timer.c
++++ b/fbdoom/i_timer.c
+@@ -75,7 +75,8 @@ int I_GetTimeMS(void)
+ void I_Sleep(int ms)
+ {
+     //SDL_Delay(ms);
+-    usleep (ms * 1000);    
++    struct timespec t = { .tv_sec = 0, .tv_nsec = ms * 1000 * 1000, };
++    nanosleep(&t, NULL);
+ }
+ 
+ void I_WaitVBL(int count)
