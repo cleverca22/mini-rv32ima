@@ -57,13 +57,15 @@ let
       #mknod /dev/input/event0 c 13 64
       #/bin/sh < /dev/tty1 > /dev/tty1 2>/dev/tty1 &
 
-      getty -n -l /bin/sh 9600 /dev/tty1 &
       echo boop
       #exit 42
       echo hello world
       mkdir /mnt
       # mount -t ext4 /dev/vda /mnt
-      exec /bin/sh
+      #exec /bin/sh
+      getty -n -l /bin/sh 9600 /dev/ttyAMA0 &
+      getty -n -l /bin/sh 9600 /dev/tty1 &
+      fbdoom -mb 2 -iwad /doom2.wad
     '';
     destination = "/init";
   };
@@ -85,6 +87,10 @@ let
       {
         object = "${myenv}/init";
         symlink = "/init";
+      }
+      {
+        object = ../DOOM2.WAD;
+        symlink = "/doom2.wad";
       }
     ];
   };

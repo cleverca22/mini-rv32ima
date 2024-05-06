@@ -1,8 +1,37 @@
+diff --git a/doomkeys.h b/doomkeys.h
+index 2dfc431..a952b7a 100644
+--- a/doomkeys.h
++++ b/doomkeys.h
+@@ -19,6 +19,8 @@
+ #ifndef __DOOMKEYS__
+ #define __DOOMKEYS__
+ 
++#include <linux/input.h>
++
+ //
+ // DOOM keyboard definition.
+ // This is the stuff configured by Setup.Exe.
+@@ -33,7 +35,6 @@
+ #define KEY_USE			0xa2
+ #define KEY_FIRE		0xa3
+ #define KEY_ESCAPE		27
+-#define KEY_ENTER		13
+ #define KEY_TAB			9
+ #define KEY_F1			(0x80+0x3b)
+ #define KEY_F2			(0x80+0x3c)
 diff --git a/fbdoom/i_timer.c b/fbdoom/i_timer.c
-index 081b38e..1fe2a7c 100644
---- a/fbdoom/i_timer.c
-+++ b/fbdoom/i_timer.c
-@@ -75,7 +75,8 @@ int I_GetTimeMS(void)
+index 081b38e..07521c3 100644
+--- a/i_timer.c
++++ b/i_timer.c
+@@ -22,6 +22,7 @@
+ #include <stdarg.h>
+ #include <sys/time.h>
+ #include <unistd.h>
++#include <time.h>
+ 
+ //
+ // I_GetTime
+@@ -75,7 +76,8 @@ int I_GetTimeMS(void)
  void I_Sleep(int ms)
  {
      //SDL_Delay(ms);
