@@ -33,7 +33,7 @@
       '';
     };
   in
-  utils.lib.eachSystem [ "x86_64-linux" "i686-linux" ] (system:
+  utils.lib.eachSystem [ "x86_64-linux" ] (system:
   let
     pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
   in {
@@ -60,7 +60,7 @@
       });
     };
     hydraJobs = {
-      inherit (self.${system}.packages.os) initrd;
+      inherit (self.packages.${system}.os) initrd toplevel;
     };
   });
 }
