@@ -19,9 +19,12 @@
 #include "virtio.h"
 #include "plic.h"
 #include "mmio.h"
+#include "pl011.h"
+
+#define ROUNDUP(a, b) (((a) + ((b)-1)) & ~((b)-1))
 
 // Just default RAM amount is 64MB.
-uint32_t ram_amt = 64*1024*1024;
+uint32_t ram_amt = 128*1024*1024;
 int fail_on_all_faults = 0;
 
 static int64_t SimpleReadNumberInt( const char * number, int64_t defaultNumber );
@@ -55,7 +58,6 @@ static void uart_store(void *state, uint32_t addr, uint32_t val);
 
 uint8_t * ram_image = 0;
 struct MiniRV32IMAState * core;
-const char * kernel_command_line = 0;
 
 bool want_exit = false;
 
@@ -112,6 +114,8 @@ int main( int argc, char ** argv )
   bool enable_virtio_blk = true;
   bool enable_virtio_input = true;
   bool have_plic = true;
+  const char * kernel_command_line = "earlycon=uart8250,mmio,0x10000000,1000000 console=tty1 console=ttyAMA0 no_hash_pointers";
+  void *fb_virt_ptr = NULL;
 
   for( i = 1; i < argc; i++ ) {
     const char * param = argv[i];
@@ -155,12 +159,20 @@ int main( int argc, char ** argv )
         }
 
   ram_image = malloc( ram_amt );
+  printf("MEM: 0x%08x -> 0x%08x == RAM\n", 0x80000000, (0x80000000 + ram_amt)-1);
   if( !ram_image ) {
     fprintf( stderr, "Error: could not allocate system image.\n" );
     return -4;
   }
+  // The core lives at the end of RAM.
+  core = (struct MiniRV32IMAState *)(ram_image + ram_amt - sizeof( struct MiniRV32IMAState ));
+  printf("MEM: 0x%08x -> 0x%08x == CORE\n", 0x80000000 + ram_amt - sizeof(struct MiniRV32IMAState), (0x80000000 + ram_amt)-1);
+  ram_amt -= sizeof(struct MiniRV32IMAState);
+  uint32_t ram_size_backup = ram_amt;
+  uint32_t advertised_ram_top = ram_amt - (64*1024);
 
 restart:
+  ram_amt = ram_size_backup;
 	{
 		FILE * f = fopen( image_file_name, "rb" );
 		if( !f || ferror( f ) )
@@ -185,6 +197,7 @@ restart:
 		}
 		fclose( f );
                 image_size = flen;
+                printf("MEM: 0x%08x -> 0x%08x == IMAGE\n", 0x80000000, 0x80000000 + image_size);
 
 		if( dtb_file_name )
 		{
@@ -204,6 +217,7 @@ restart:
 				long dtblen = ftell( f );
 				fseek( f, 0, SEEK_SET );
 				dtb_ptr = ram_amt - dtblen - sizeof( struct MiniRV32IMAState );
+                                printf("MEM: 0x%08x -> 0x%08x == INITRD\n", 0x80000000 + dtb_ptr, 0x80000000 + dtb_ptr + dtblen - 1);
 				if( fread( ram_image + dtb_ptr, dtblen, 1, f ) != 1 )
 				{
 					fprintf( stderr, "Error: Could not open dtb \"%s\"\n", dtb_file_name );
@@ -214,15 +228,6 @@ restart:
 		}
 		else
 		{
-			// Load a default dtb.
-			dtb_ptr = ram_amt - (64 * 1024);
-			memcpy(ram_image + dtb_ptr, default64mbdtb, sizeof( default64mbdtb ) );
-                        void *v_fdt = ram_image + dtb_ptr;
-			int ret = fdt_open_into(v_fdt, v_fdt, 32*1024);
-                        if (ret) {
-                          printf("ERROR: fdt_open_into() == %d\n", ret);
-                          return -1;
-                        }
                         uint32_t initrd_addr = 0;
                         uint32_t initrd_len = 0;
                         if (initrd_name) {
@@ -241,28 +246,51 @@ restart:
                             fprintf( stderr, "Error: Could not fit initrd image (%d bytes) into %d\n", initrd_len, ram_amt);
                             return -1;
                           }
+                          printf("MEM: 0x%08x -> 0x%08x == INITRD\n", 0x80000000 + initrd_addr, 0x80000000 + initrd_addr + initrd_len - 1);
                           if (fread(ram_image + initrd_addr, initrd_len, 1, fh) != 1) {
                             fprintf( stderr, "Error: Could not load initrd.\n" );
                             return -1;
                           }
                           fclose(fh);
                         }
+			// Load a default dtb.
+			dtb_ptr = initrd_addr + initrd_len + (64*1024);
+			memcpy(ram_image + dtb_ptr, default64mbdtb, sizeof( default64mbdtb ) );
+                        printf("MEM: 0x%08x -> 0x%08x == DTB\n", 0x80000000 + dtb_ptr, 0x80000000 + dtb_ptr + sizeof(default64mbdtb) - 1);
+                        void *v_fdt = ram_image + dtb_ptr;
+			int ret = fdt_open_into(v_fdt, v_fdt, 32*1024);
+                        if (ret) {
+                          printf("ERROR: fdt_open_into() == %d\n", ret);
+                          return -1;
+                        }
                         if (enable_gfx) {
+                          const int w = 640;
+                          const int h = 480;
+                          const int bpp = 4;
+                          const int bytes_per_frame = w * h * bpp;
+                          const int size_rounded_up = ROUNDUP(bytes_per_frame,4096);
+
+                          advertised_ram_top -= size_rounded_up;
+                          advertised_ram_top &= ~0xfff;
+                          advertised_ram_top -= (1024*1024*4);
+
                           // TODO, adjust the top of ram in /memory below
                           int system = fdt_add_subnode(v_fdt, 0, "system");
                           fdt_setprop_string(v_fdt, system, "compatible", "simple-bus");
                           fdt_setprop_u32(v_fdt, system, "#address-cells", 1);
                           fdt_setprop_u32(v_fdt, system, "#size-cells", 1);
                           fdt_setprop(v_fdt, system, "ranges", NULL, 0);
+                          printf("MEM: 0x%08x -> 0x%08x == FB\n", 0x80000000 + advertised_ram_top, 0x80000000 + advertised_ram_top + bytes_per_frame - 1);
 
                           // FB_SIMPLE=y in linux
                           int fb = fdt_add_subnode(v_fdt, system, "framebuffer");
                           fdt_setprop_string(v_fdt, fb, "compatible", "simple-framebuffer");
-                          fdt_appendprop_addrrange(v_fdt, system, fb, "reg", 0x80000000 + (32 * 1024 * 1024), 640 * 480 * 4);
-                          fdt_setprop_u32(v_fdt, fb, "width", 640);
-                          fdt_setprop_u32(v_fdt, fb, "height", 480);
-                          fdt_setprop_u32(v_fdt, fb, "stride", 640*4);
+                          fdt_appendprop_addrrange(v_fdt, system, fb, "reg", 0x80000000 + advertised_ram_top, bytes_per_frame);
+                          fdt_setprop_u32(v_fdt, fb, "width", w);
+                          fdt_setprop_u32(v_fdt, fb, "height", h);
+                          fdt_setprop_u32(v_fdt, fb, "stride", w*bpp);
                           fdt_setprop_string(v_fdt, fb, "format", "a8r8g8b8");
+                          fb_virt_ptr = ram_image + advertised_ram_top;
                         }
                         if (have_plic) {
                           int soc = fdt_path_offset(v_fdt, "/soc");
@@ -279,6 +307,9 @@ restart:
                           struct virtio_device *virtio_input = virtio_input_create(ram_image);
                           virtio_add_dtb(virtio_input, v_fdt);
                           mmio_add_handler(virtio_input->reg_base, virtio_input->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_input);
+                        }
+                        if (true) {
+                          pl011_create(v_fdt, 0x10004000);
                         }
                         int chosen = fdt_path_offset(v_fdt, "/chosen");
                         if (chosen < 0) {
@@ -298,11 +329,11 @@ restart:
                         int memory = fdt_path_offset(v_fdt, "/memory@80000000");
                         if (memory > 0) {
                           fdt_setprop(v_fdt, memory, "reg", NULL, 0);
-                          if (enable_gfx) {
-                            fdt_appendprop_addrrange(v_fdt, 0, memory, "reg", 0x80000000, 32 * 1024 * 1024);
-                          } else {
-                            fdt_appendprop_addrrange(v_fdt, 0, memory, "reg", 0x80000000, ram_amt - (16*1024));
-                          }
+                          //if (enable_gfx) {
+                          //fdt_appendprop_addrrange(v_fdt, 0, memory, "reg", 0x80000000, 32 * 1024 * 1024);
+                          //} else {
+                          fdt_appendprop_addrrange(v_fdt, 0, memory, "reg", 0x80000000, advertised_ram_top);
+                          //}
                         }
 		}
 	}
@@ -310,8 +341,6 @@ restart:
         mmio_add_handler(0x10000000, 0x100, uart_load, uart_store, NULL);
 	CaptureKeyboardInput();
 
-	// The core lives at the end of RAM.
-	core = (struct MiniRV32IMAState *)(ram_image + ram_amt - sizeof( struct MiniRV32IMAState ));
 	core->pc = MINIRV32_RAM_IMAGE_OFFSET;
 	core->regs[10] = 0x00; //hart ID
 	core->regs[11] = dtb_ptr?(dtb_ptr+MINIRV32_RAM_IMAGE_OFFSET):0; //dtb_pa (Must be valid pointer) (Should be pointer to dtb)
@@ -351,7 +380,12 @@ restart:
 		switch( ret )
 		{
 			case 0: break;
-			case 1: if( do_sleep ) MiniSleep(); *this_ccount += instrs_per_flip; break;
+			case 1:
+                          if( do_sleep ) {
+                            MiniSleep();
+                          }
+                          *this_ccount += instrs_per_flip;
+                          break;
 			case 3: instct = 0; break;
 			case 0x7777: goto restart;	//syscon code for restart
 			case 0x5555: printf( "POWEROFF@0x%08x%08x\n", core->cycleh, core->cyclel ); return 0; //syscon code for power-off
@@ -366,7 +400,7 @@ restart:
                   if (sinceflip > 16666) {
 #endif
                     uint64_t start = GetTimeMicroseconds();
-                    CNFGBlitImage((uint32_t*)(ram_image + (32*1024*1024)), 0, 0, 640, 480);
+                    CNFGBlitImage((uint32_t*)fb_virt_ptr, 0, 0, 640, 480);
                     CNFGSwapBuffers();
                     CNFGHandleInput();
                     uint64_t end = GetTimeMicroseconds();
@@ -377,6 +411,7 @@ restart:
                     lastflip = end;
                   }
                 }
+                pl011_poll();
                 if (want_exit) break;
 	}
         // virtio_dump_all();
