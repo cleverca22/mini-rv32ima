@@ -2,7 +2,6 @@
 
 {
   imports = [
-    ./configuration-fbdoom.nix
   ];
   initrd.packages = [
     (pkgs.callPackage ./evtest.nix {})

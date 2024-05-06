@@ -1,7 +1,8 @@
 { lib
 , configuration ? import ./configuration.nix
 , extraModules ? []
-, nixpkgs }:
+, nixpkgs
+}:
 
 let
   crossSystem = lib.systems.examples.riscv32-nommu;

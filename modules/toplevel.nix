@@ -7,6 +7,7 @@
       cd $out
       cp ${config.system.build.kernel}/Image .
       cp ${config.system.build.initrd}/initrd .
+      cp ${config.system.build.kernel.configfile} kernel.config
     '';
   };
 }

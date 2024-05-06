@@ -38,15 +38,11 @@
     pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
   in {
     packages = rec {
-      inherit (pkgs) mini-rv32ima rvkernel myinitrd myenv boop myinitrdrename borrowedMkCpio console shrunkenBinaries rvkernelWithoutInitrd;
-      cfg = pkgs.rvkernel.configfile;
+      inherit (pkgs) mini-rv32ima;
       default = pkgs.writeShellScriptBin "dotest" ''
-        ${pkgs.mini-rv32ima}/bin/mini-rv32ima -f ${pkgs.rvkernel}/Image "$@"
-      '';
-      quicktest = pkgs.writeShellScriptBin "dotest" ''
         ${pkgs.mini-rv32ima}/bin/full-rv32ima -f ${os.kernel}/Image -i ${os.initrd}/initrd
       '';
-      os = pkgs.callPackage ./os.nix { inherit nixpkgs; };
+      os = (pkgs.callPackage ./os.nix { inherit nixpkgs; }).toplevel;
     };
     devShells = {
       kernel = pkgs.pkgsCross.riscv32-nommu.linux.overrideDerivation (drv: {
@@ -59,8 +55,11 @@
         '';
       });
     };
-    hydraJobs = {
-      inherit (self.packages.${system}.os) initrd toplevel;
+    hydraJobs = let
+      mkImage = extra: (pkgs.callPackage ./os.nix { inherit nixpkgs; extraModules = extra; }).toplevel;
+    in {
+      fbdoom = mkImage [ ./configuration-fbdoom.nix ];
+      base = mkImage [ ];
     };
   });
 }
