@@ -111,7 +111,7 @@ int main( int argc, char ** argv )
   const char *initrd_name = NULL;
   const char * dtb_file_name = 0;
   bool enable_gfx = true;
-  bool enable_virtio_blk = true;
+  bool enable_virtio_blk = false;
   bool enable_virtio_input = true;
   bool have_plic = true;
   const char * kernel_command_line = "earlycon=uart8250,mmio,0x10000000,1000000 console=tty1 console=ttyAMA0 no_hash_pointers";
