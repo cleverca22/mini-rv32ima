@@ -9,6 +9,10 @@
       lib = self.lib;
     in {
       mini-rv32ima = self.callPackage ./mini-rv32ima {};
+      dtc = super.dtc.overrideAttrs (old: {
+        patches = old.patches ++ [ ./dtc-static.patch ];
+        doCheck = false;
+      });
       boop = self.pkgsCross.riscv32-nommu.runCommandCC "boop" {
         passAsFile = [ "src" ];
         src = ''
@@ -65,7 +69,34 @@
       });
     };
     hydraJobs = let
-      mkImage = extra: (pkgs.callPackage ./os.nix { inherit nixpkgs; extraModules = extra; }).toplevel;
+      mkImage = extra:
+      let
+        toplevel = (pkgs.callPackage ./os.nix { inherit nixpkgs; extraModules = extra; }).toplevel;
+        output = pkgs.runCommand "build" {
+          nativeBuildInputs = [ pkgs.zip ];
+          passAsFile = [ "script" ];
+          script = ''
+            #!/bin/sh
+            dir=$(dirname $0)
+            exec "$dir/full-rv32ima" -f "$dir/Image" -i "$dir/initrd"
+          '';
+        } ''
+          mkdir -p $out/unpacked $out/nix-support
+          cd $out/unpacked
+          cp ${toplevel}/* .
+          cp ${self.packages.${system}.static-rv32ima}/bin/* .
+          cp $scriptPath launch
+          chmod +x launch
+
+          zip ../packed.zip *
+          echo "file binary-dist $out/packed.zip" >> $out/nix-support/hydra-build-products
+
+          cat <<EOF > $out/nix-support/hydra-metrics
+          initrd $(stat --printf=%s initrd) bytes
+          Image $(stat --printf=%s Image) bytes
+          EOF
+        '';
+      in output;
     in {
       fbdoom = mkImage [ ./configuration-fbdoom.nix ];
       base = mkImage [ ];

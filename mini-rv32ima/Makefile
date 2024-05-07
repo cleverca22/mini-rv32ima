@@ -2,14 +2,14 @@ all : mini-rv32ima mini-rv32ima.flt
 
 mini-rv32ima : mini-rv32ima.c mini-rv32ima.h default64mbdtc.h
 	# for debug
-	gcc -o $@ $< -g -O2 -Wall
-	gcc -o $@.tiny $< -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -fwhole-program -s
+	${CC} -o $@ $< -g -O2 -Wall
+	${CC} -o $@.tiny $< -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -fwhole-program -s
 
 SRCS := plic.c virtio.c virtio-blk.c virtio-input.c full-rv32ima.c mmio.c pl011.c
 OBJ := $(addsuffix .o, $(basename $(SRCS)))
 
 CFLAGS := -ffunction-sections -fdata-sections -Wall -Wstrict-prototypes
-LFLAGS := -lfdt -lX11 -Wl,--gc-sections
+LFLAGS := -lfdt -lX11 -lxcb -lXau -lXdmcp -Wl,--gc-sections
 
 ifeq ($(D),1)
 CFLAGS += -g -Og -fno-inline-small-functions
@@ -26,7 +26,7 @@ CFLAGS += -DCNFGOGL
 endif
 
 full-rv32ima: $(OBJ) Makefile
-	gcc -o $@ $(OBJ) $(LFLAGS)
+	${CC} -o $@ $(OBJ) $(LFLAGS)
 	mv new-sizes old-sizes || true
 	nm -S --size-sort $@ | cut -d' ' -f2- > new-sizes
 	diff -u --color old-sizes new-sizes || true
@@ -42,16 +42,16 @@ amalgamation.c: $(SRCS)
 	cat $(SRCS) > $@
 
 full-rv32ima.wholeprog: amalgamation.c default64mbdtc.h rawdraw_sf.h virtio.h plic.h x11-key-lut.h
-	gcc -o $@ $< $(CFLAGS) $(LFLAGS) -fwhole-program
+	${CC} -o $@ $< $(CFLAGS) $(LFLAGS) -fwhole-program
 	mv new-sizes.wp old-sizes.wp || true
 	nm -S --size-sort $@ | cut -d' ' -f2- > new-sizes.wp
 	diff -ui --color old-sizes.wp new-sizes.wp || true
 
 %.o: %.c
-	gcc -c -o $@ $< ${CFLAGS}
+	${CC} -c -o $@ $< ${CFLAGS}
 
 gen-x11-lut: gen-x11-lut.c
-	gcc -o $@ $<
+	${CC} -o $@ $<
 
 x11-key-lut.h: gen-x11-lut
 	./gen-x11-lut > $@.temp
@@ -106,7 +106,7 @@ testdlimage : mini-rv32ima DownloadedImage
 bintoh :
 	echo "#include <stdio.h>" > bintoh.c
 	echo "int main(int argc,char ** argv) {if(argc==1) return -1; int c, p=0; printf( \"static const unsigned char %s[] = {\", argv[1] ); while( ( c = getchar() ) != EOF ) printf( \"0x%02x,%c\", c, (((p++)&15)==15)?10:' '); printf( \"};\" ); return 0; }" >> bintoh.c
-	gcc bintoh.c -o bintoh
+	${CC} bintoh.c -o bintoh
 
 default64mbdtc.h : sixtyfourmb.dtb bintoh
 	./bintoh default64mbdtb < $< > $@
