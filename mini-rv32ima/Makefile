@@ -9,7 +9,11 @@ SRCS := plic.c virtio.c virtio-blk.c virtio-input.c full-rv32ima.c mmio.c pl011.
 OBJ := $(addsuffix .o, $(basename $(SRCS)))
 
 CFLAGS := -ffunction-sections -fdata-sections -Wall -Wstrict-prototypes
-LFLAGS := -lfdt -lX11 -lxcb -lXau -lXdmcp -Wl,--gc-sections
+LIBS := -lfdt -lX11
+ifeq ($(STATIC),1)
+LIBS += -lxcb -lXau -lXdmcp
+endif
+LFLAGS := $(LIBS) -Wl,--gc-sections
 
 ifeq ($(D),1)
 CFLAGS += -g -Og -fno-inline-small-functions

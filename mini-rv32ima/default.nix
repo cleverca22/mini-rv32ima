@@ -12,5 +12,6 @@ stdenv.mkDerivation {
     rm -rf $out/nix-support
   '';
   # dontStrip = true;
+  STATIC = stdenv.hostPlatform.isStatic;
   buildInputs = [ dtc xorg.libX11 ];
 }
