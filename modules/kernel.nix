@@ -52,6 +52,7 @@ let
       RISCV_ISA_C = no; # mini-rv32ima lacks support for the c extensions
       RISCV_ISA_FALLBACK = no;
       SERIAL_8250 = yes;
+      SERIAL_AMBA_PL011 = yes;
       SERIAL_EARLYCON = yes;
       SERIAL_OF_PLATFORM = yes;
       SMP = no;

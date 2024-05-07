@@ -64,8 +64,8 @@ let
       # mount -t ext4 /dev/vda /mnt
       #exec /bin/sh
       getty -n -l /bin/sh 9600 /dev/ttyAMA0 &
-      #getty -n -l /bin/sh 9600 /dev/tty1
-      fbdoom -mb 2 -iwad /doom2.wad # -playdemo demo.lmp
+      ${config.initrd.postInit}
+      getty -n -l /bin/sh 9600 /dev/tty1
     '';
     destination = "/init";
   };
@@ -101,9 +101,15 @@ let
 in
 {
   options = {
-    initrd.packages = mkOption {
-      type = types.listOf types.package;
-      default = [];
+    initrd = {
+      packages = mkOption {
+        type = types.listOf types.package;
+        default = [];
+      };
+      postInit = mkOption {
+        type = types.lines;
+        default = "";
+      };
     };
   };
   config = {
