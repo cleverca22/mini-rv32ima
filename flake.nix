@@ -86,20 +86,21 @@
             exec "$dir/full-rv32ima" -f "$dir/Image" -i "$dir/initrd"
           '';
         } ''
-          mkdir -p $out/unpacked $out/nix-support
-          cd $out/unpacked
+          mkdir -p $out/mini-rv32ima $out/nix-support
+          cd $out/mini-rv32ima
           cp ${toplevel}/* .
           cp ${self.packages.${system}.static-rv32ima}/bin/* .
           cp $scriptPath launch
           chmod +x launch
 
-          zip ../packed.zip *
-          echo "file binary-dist $out/packed.zip" >> $out/nix-support/hydra-build-products
-
           cat <<EOF > $out/nix-support/hydra-metrics
           initrd $(stat --printf=%s initrd) bytes
           Image $(stat --printf=%s Image) bytes
           EOF
+
+          cd ..
+          zip packed.zip mini-rv32ima/*
+          echo "file binary-dist $out/packed.zip" >> $out/nix-support/hydra-build-products
         '';
       in output;
     in {
