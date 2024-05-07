@@ -59,6 +59,9 @@
       default = pkgs.writeShellScriptBin "dotest" ''
         ${pkgs.mini-rv32ima}/bin/full-rv32ima -f ${os}/Image -i ${os}/initrd
       '';
+      http = pkgs.writeShellScriptBin "dotest" ''
+        ${pkgs.mini-rv32ima.override { http=true; }}/bin/full-rv32ima -f ${os}/Image -i ${os}/initrd
+      '';
       os = (pkgs.callPackage ./os.nix { inherit nixpkgs; hostSystem = system; }).toplevel;
       doom = mkDoTest [ ./configuration-fbdoom.nix ];
     };
