@@ -21,6 +21,10 @@ ifeq ($(HTTP),1)
 CFLAGS += -DCNFGHTTP
 endif
 
+ifeq ($(GL),1)
+CFLAGS += -DCNFGOGL
+endif
+
 full-rv32ima: $(OBJ) Makefile
 	gcc -o $@ $(OBJ) $(LFLAGS)
 	mv new-sizes old-sizes || true

@@ -36,13 +36,21 @@
   utils.lib.eachSystem [ "x86_64-linux" ] (system:
   let
     pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
+    mkDoTest = extra:
+    let
+      os = pkgs.callPackage ./os.nix { inherit nixpkgs; extraModules = extra; };
+    in
+      pkgs.writeShellScriptBin "dotest" ''
+        ${pkgs.mini-rv32ima}/bin/full-rv32ima -f ${os.toplevel}/Image -i ${os.toplevel}/initrd
+      '';
   in {
     packages = rec {
       inherit (pkgs) mini-rv32ima;
       default = pkgs.writeShellScriptBin "dotest" ''
-        ${pkgs.mini-rv32ima}/bin/full-rv32ima -f ${os.kernel}/Image -i ${os.initrd}/initrd
+        ${pkgs.mini-rv32ima}/bin/full-rv32ima -f ${os}/Image -i ${os}/initrd
       '';
       os = (pkgs.callPackage ./os.nix { inherit nixpkgs; }).toplevel;
+      doom = mkDoTest [ ./configuration-fbdoom.nix ];
     };
     devShells = {
       kernel = pkgs.pkgsCross.riscv32-nommu.linux.overrideDerivation (drv: {

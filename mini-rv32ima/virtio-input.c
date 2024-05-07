@@ -9,6 +9,7 @@
 #include "virtio.h"
 #include "x11-key-lut.h"
 #include "plic.h"
+#include "rawdraw_sf.h"
 
 struct input_queue {
   uint8_t *dest;
@@ -165,6 +166,9 @@ void send_event(uint16_t type, uint16_t code, uint32_t value) {
 // this flag tells the dups to go away
 
 void HandleKey( int keycode, int bDown ) {
+  if (keycode == CNFG_X11_EXPOSE) {
+    return;
+  }
   //printf("virtio input HandleKey: %d %d\n", keycode, bDown);
   int linux_code = translate_keycode(keycode);
   if (linux_code == 0) {

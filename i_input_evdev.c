@@ -36,6 +36,7 @@ static const char ev_to_doom[] = {
   [KEY_RIGHT] = KEY_RIGHTARROW,
   [KEY_UP] = KEY_UPARROW,
   [KEY_Y] = 'y',
+  [KEY_SPACE] = KEY_USE,
 };
 
 void I_InitInput(void) {

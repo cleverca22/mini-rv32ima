@@ -44,7 +44,7 @@ static uint32_t virtio_blk_config_load(struct virtio_device *dev, uint32_t offse
     printf("%ld %d\n", sector_count, ret);
     break;
   }
-  printf("virtio_blk_config_load(%p, %d) == %u\n", dev, offset, ret);
+  printf("virtio_blk_config_load(%p, %d) == 0x%x\n", dev, offset, ret);
   return ret;
 }
 

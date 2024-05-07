@@ -64,8 +64,8 @@ let
       # mount -t ext4 /dev/vda /mnt
       #exec /bin/sh
       getty -n -l /bin/sh 9600 /dev/ttyAMA0 &
-      getty -n -l /bin/sh 9600 /dev/tty1 &
-      fbdoom -mb 2 -iwad /doom2.wad -playdemo demo.lmp
+      #getty -n -l /bin/sh 9600 /dev/tty1
+      fbdoom -mb 2 -iwad /doom2.wad # -playdemo demo.lmp
     '';
     destination = "/init";
   };
