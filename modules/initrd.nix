@@ -22,7 +22,7 @@ let
     done
   '';
   # from https://github.com/celun/celun/blob/f4e681b896aae165506b7963eb6ac6d6c032145f/pkgs/mkCpio/default.nix
-  borrowedMkCpio = (import pkgs.path { system = "x86_64-linux"; }).linux.overrideAttrs (attrs: {
+  borrowedMkCpio = (import pkgs.path { system = pkgs.stdenv.buildPlatform.system; }).linux.overrideAttrs (attrs: {
     uts = [ "out" ];
     buildPhase = "make -C source/usr gen_init_cpio";
     installPhase = ''
