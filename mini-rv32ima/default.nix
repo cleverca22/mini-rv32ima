@@ -9,5 +9,5 @@ stdenv.mkDerivation {
     cp mini-rv32ima{,.tiny} full-rv32ima $out/bin/
   '';
   # dontStrip = true;
-  buildInputs = [ dtc xorg.libX11 mesa ];
+  buildInputs = [ dtc xorg.libX11 ];
 }

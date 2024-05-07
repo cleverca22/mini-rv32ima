@@ -46,6 +46,7 @@
   in {
     packages = rec {
       inherit (pkgs) mini-rv32ima;
+      static-rv32ima = pkgs.pkgsStatic.mini-rv32ima;
       default = pkgs.writeShellScriptBin "dotest" ''
         ${pkgs.mini-rv32ima}/bin/full-rv32ima -f ${os}/Image -i ${os}/initrd
       '';
@@ -68,6 +69,7 @@
     in {
       fbdoom = mkImage [ ./configuration-fbdoom.nix ];
       base = mkImage [ ];
+      static-rv32ima = self.packages.${system}.static-rv32ima;
     };
   });
 }
