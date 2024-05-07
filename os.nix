@@ -2,11 +2,12 @@
 , configuration ? import ./configuration.nix
 , extraModules ? []
 , nixpkgs
+, hostSystem
 }:
 
 let
   crossSystem = lib.systems.examples.riscv32-nommu;
-  system = "x86_64-linux";
+  system = hostSystem;
   pkgsModule = {config, ... }: {
     _file = ./os.nix;
     key = ./os.nix;

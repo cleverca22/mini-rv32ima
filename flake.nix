@@ -42,7 +42,7 @@
     pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
     mkDoTest = extra:
     let
-      os = pkgs.callPackage ./os.nix { inherit nixpkgs; extraModules = extra; };
+      os = pkgs.callPackage ./os.nix { inherit nixpkgs; extraModules = extra; hostSystem = system; };
     in
       pkgs.writeShellScriptBin "dotest" ''
         ${pkgs.mini-rv32ima}/bin/full-rv32ima -f ${os.toplevel}/Image -i ${os.toplevel}/initrd
@@ -54,7 +54,7 @@
       default = pkgs.writeShellScriptBin "dotest" ''
         ${pkgs.mini-rv32ima}/bin/full-rv32ima -f ${os}/Image -i ${os}/initrd
       '';
-      os = (pkgs.callPackage ./os.nix { inherit nixpkgs; }).toplevel;
+      os = (pkgs.callPackage ./os.nix { inherit nixpkgs; hostSystem = system; }).toplevel;
       doom = mkDoTest [ ./configuration-fbdoom.nix ];
     };
     devShells = {
@@ -71,7 +71,7 @@
     hydraJobs = let
       mkImage = extra:
       let
-        toplevel = (pkgs.callPackage ./os.nix { inherit nixpkgs; extraModules = extra; }).toplevel;
+        toplevel = (pkgs.callPackage ./os.nix { inherit nixpkgs; extraModules = extra; hostSystem = system; }).toplevel;
         output = pkgs.runCommand "build" {
           nativeBuildInputs = [ pkgs.zip ];
           passAsFile = [ "script" ];
