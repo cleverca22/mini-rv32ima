@@ -1,21 +1,26 @@
-diff -ur dtc-before/libfdt/meson.build dtc-after/libfdt/meson.build
---- dtc-before/libfdt/meson.build	2024-05-07 15:58:14.070792700 -0300
-+++ dtc-after/libfdt/meson.build	2024-05-07 15:58:46.543032425 -0300
-@@ -27,7 +27,7 @@
+diff --git a/libfdt/meson.build b/libfdt/meson.build
+index bf8343f..0bc0781 100644
+--- a/libfdt/meson.build
++++ b/libfdt/meson.build
+@@ -26,19 +26,14 @@ else
+ endif
  
  link_args += version_script
- libfdt = library(
--  'fdt', sources,
-+  'fdt-so', sources,
-   version: '1.6.0',
+-libfdt = both_libraries(
++libfdt = static_library(
+   'fdt', sources,
+-  version: meson.project_version(),
    link_args: link_args,
    link_depends: 'version.lds',
-@@ -63,7 +63,7 @@
- pkgconfig = import('pkgconfig')
+   install: true,
+ )
  
- pkgconfig.generate(
--  libraries: libfdt,
-+  libraries: link_with,
-   version: meson.project_version(),
-   filebase: 'libfdt',
-   name: 'libfdt',
+-if static_build
+-  link_with = libfdt.get_static_lib()
+-else
+-  link_with = libfdt.get_shared_lib()
+-endif
++link_with = libfdt
+ 
+ libfdt_inc = include_directories('.')
+ 
