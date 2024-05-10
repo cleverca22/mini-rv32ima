@@ -55,7 +55,7 @@ full-rv32ima.wholeprog: amalgamation.c default64mbdtc.h rawdraw_sf.h virtio.h pl
 	${CC} -c -o $@ $< ${CFLAGS}
 
 gen-x11-lut: gen-x11-lut.c
-	${CC} -o $@ $<
+	${CC} -o $@ $< -Wall
 
 x11-key-lut.h: gen-x11-lut
 	./gen-x11-lut > $@.temp

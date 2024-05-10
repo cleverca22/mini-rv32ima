@@ -287,7 +287,7 @@ uint32_t virtio_mmio_load(void *state, uint32_t offset) {
   case 0x34: // QueueNumMax
     switch (dev->QueueSel) {
     case 0:
-      ret = 1024;
+      ret = 4096;
       break;
     case 1:
       ret = 64;

@@ -96,8 +96,7 @@ void *cast_guest_ptr(void *image, uint32_t addr) {
   return image + addr;
 }
 
-int main( int argc, char ** argv )
-{
+int main( int argc, char ** argv ) {
   int i;
   int image_size = 0;
   long long instct = -1;
@@ -395,11 +394,13 @@ restart:
                   uint64_t now = GetTimeMicroseconds();
                   uint64_t sinceflip = now - lastflip;
 #ifdef CNFGHTTP
-                  if (sinceflip > 1000000) {
+                  if (sinceflip > 10000) {
 #else
                   if (sinceflip > 16666) {
 #endif
                     uint64_t start = GetTimeMicroseconds();
+                    CNFGBGColor = 0;
+                    CNFGClearFrame();
                     CNFGBlitImage((uint32_t*)fb_virt_ptr, 0, 0, 640, 480);
                     CNFGSwapBuffers();
                     CNFGHandleInput();

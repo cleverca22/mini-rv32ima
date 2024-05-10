@@ -50,8 +50,11 @@ void I_InitInput(void) {
   assert(ret == 0);
 }
 
+int delta_x = 0;
+int delta_y = 0;
+
 void I_GetEvent(void) {
-  struct input_event ev[64];
+  struct input_event ev[32];
   int rd = read(fd, ev, sizeof(ev));
   for (int j=0; j < rd / ((signed int)sizeof(struct input_event)); j++) {
     event_t event;
@@ -59,18 +62,42 @@ void I_GetEvent(void) {
       if (ev[j].code == KEY_LEFTCTRL) {
         shiftdown = (ev[j].value > 0);
       } else if ((ev[j].code < sizeof(ev_to_doom)) && (ev_to_doom[ev[j].code])) {
-        if (ev[j].value) event.type = ev_keydown;
-        else event.type = ev_keyup;
-
-        event.data1 = ev_to_doom[ev[j].code];
-        if (shiftdown) {
-        } else {
+        switch (ev[j].value) {
+        case 0: // release
+          printf("u");
+          event.type = ev_keyup;
+          event.data1 = ev_to_doom[ev[j].code];
           event.data2 = event.data1;
+          D_PostEvent(&event);
+          break;
+        case 1: // initial down
+          printf("d");
+          event.type = ev_keydown;
+          event.data1 = ev_to_doom[ev[j].code];
+          event.data2 = event.data1;
+          D_PostEvent(&event);
+          break;
+        case 2: // repeat
+          printf("r");
+          break;
         }
-        D_PostEvent(&event);
+
       }
     } else if (ev[j].type == EV_SYN) {
+      if ((delta_x != 0) || (delta_y != 0)) {
+        event.type = ev_mouse;
+        event.data1 = 0;
+        event.data2 = delta_x * 4;
+        event.data3 = delta_y;
+        event.data3 = 0; // no y movement!
+        D_PostEvent(&event);
+        delta_x = 0;
+        delta_y = 0;
+      }
     } else if (ev[j].type == EV_ABS) { // mouse
+    } else if (ev[j].type == EV_REL) { // mouse
+      if (ev[j].code == REL_X) delta_x = ev[j].value;
+      else if (ev[j].code == REL_Y) delta_y = ev[j].value;
     } else {
       printf("sec: %ld.%06ld type: %d code: %d value: %d\n", ev[j].input_event_sec, ev[j].input_event_usec, ev[j].type, ev[j].code, ev[j].value);
     }
