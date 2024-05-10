@@ -42,7 +42,7 @@
       '';
     };
   in
-  utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
+  (utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
   let
     pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
     mkDoTest = extra:
@@ -62,6 +62,7 @@
       http = pkgs.writeShellScriptBin "dotest" ''
         ${pkgs.mini-rv32ima.override { http=true; }}/bin/full-rv32ima -f ${os}/Image -i ${os}/initrd
       '';
+      static-http = pkgs.pkgsStatic.mini-rv32ima.override { http=true; };
       os = (pkgs.callPackage ./os.nix { inherit nixpkgs; hostSystem = system; }).toplevel;
       doom = mkDoTest [ ./configuration-fbdoom.nix ];
     };
@@ -93,6 +94,7 @@
           cd $out/mini-rv32ima
           cp ${toplevel}/* .
           cp ${self.packages.${system}.static-rv32ima}/bin/* .
+          cp ${self.packages.${system}.static-http}/bin/full-rv32ima full-rv32ima.http
           cp $scriptPath launch
           chmod +x launch
 
@@ -111,5 +113,10 @@
       base = mkImage [ ];
       static-rv32ima = self.packages.${system}.static-rv32ima;
     };
-  });
+  })) // {
+    nixConfig = {
+      substituters = [ "https://hydra.angeldsis.com" "https://cache.nixos.org" ];
+      trusted-public-keys = [ "hydra.angeldsis.com-1:7s6tP5et6L8Y6sX7XGIwzX5bnLp00MtUQ/1C9t1IBGE=" ];
+    };
+  };
 }
