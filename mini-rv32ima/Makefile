@@ -32,7 +32,7 @@ endif
 full-rv32ima: $(OBJ) Makefile
 	${CC} -o $@ $(OBJ) $(LFLAGS)
 	mv new-sizes old-sizes || true
-	nm -S --size-sort $@ | cut -d' ' -f2- > new-sizes
+	${NM} -S --size-sort $@ | cut -d' ' -f2- > new-sizes
 	diff -u --color old-sizes new-sizes || true
 
 virtio-input.o: virtio-input.c virtio.h x11-key-lut.h plic.h

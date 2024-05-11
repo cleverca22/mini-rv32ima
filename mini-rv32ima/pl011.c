@@ -1,6 +1,7 @@
 #include <libfdt.h>
 #include <stdio.h>
-#include  <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 #include "pl011.h"
 #include "plic.h"

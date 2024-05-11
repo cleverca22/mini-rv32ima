@@ -335,11 +335,7 @@ restart:
                         int memory = fdt_path_offset(v_fdt, "/memory@80000000");
                         if (memory > 0) {
                           fdt_setprop(v_fdt, memory, "reg", NULL, 0);
-                          //if (enable_gfx) {
-                          //fdt_appendprop_addrrange(v_fdt, 0, memory, "reg", 0x80000000, 32 * 1024 * 1024);
-                          //} else {
                           fdt_appendprop_addrrange(v_fdt, 0, memory, "reg", 0x80000000, advertised_ram_top);
-                          //}
                         }
 		}
 	}
@@ -401,7 +397,7 @@ restart:
                   uint64_t now = GetTimeMicroseconds();
                   uint64_t sinceflip = now - lastflip;
 #ifdef CNFGHTTP
-                  if (sinceflip > 10000) {
+                  if (sinceflip > 16666) {
 #else
                   if (sinceflip > 16666) {
 #endif

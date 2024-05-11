@@ -2,6 +2,7 @@
 with lib;
 
 let
+  cfg = config.initrd;
   shrunkenBinaries = pkgs.runCommand "shrunken" {
     inputs = config.initrd.packages;
   } ''
@@ -12,12 +13,16 @@ let
     done
     for x in $out/bin/*; do
       if [[ -f $x && ! -L $x ]]; then
+        set -x
         echo its a file $x
         ldso=$(patchelf --print-interpreter $x)
         cp $ldso $out/lib
+
         chmod +w $out/lib/$(basename $ldso)
         chmod +w $x
         patchelf --set-interpreter $out/lib/$(basename $ldso) $x
+        patchelf --set-rpath /lib/ $x
+        set +x
       fi
     done
   '';
@@ -50,19 +55,29 @@ let
       mount -t devtmpfs devfs dev/
 
       mkdir /mnt
-      # mount -t ext4 /dev/vda /mnt
-      #exec /bin/sh
-      getty -n -l /bin/sh 9600 /dev/ttyAMA0 &
+      #getty -n -l /bin/sh 9600 /dev/ttyAMA0 &
       ${config.initrd.postInit}
-      getty -n -l /bin/sh 9600 /dev/tty1
+
+      exec init
     '';
     destination = "/init";
   };
+  inittab = pkgs.writeTextFile {
+    name = "inittab";
+    text = ''
+      console::sysinit:echo "Welcome to mini-rv32ima Linux"
+      ${lib.optionalString cfg.shellOnTTY1 "console::respawn:getty -n -l /bin/sh 9600 /dev/tty1"}
+      ttyAMA0::respawn:getty -n -l /bin/sh 9600 /dev/ttyAMA0
+      ${cfg.inittab}
+    '';
+    destination = "/etc/inittab";
+  };
   myenv = pkgs.buildEnv {
-    name = "env";
+    name = "myenv";
     paths = with pkgs; [
       myinit
       shrunkenBinaries
+      inittab
     ];
   };
   myinitrd = pkgs.makeInitrd {
@@ -74,16 +89,12 @@ let
         symlink = "/bin";
       }
       {
+        object = "${myenv}/etc";
+        symlink = "/etc";
+      }
+      {
         object = "${myenv}/init";
         symlink = "/init";
-      }
-      {
-        object = ../DOOM2.WAD;
-        symlink = "/doom2.wad";
-      }
-      {
-        object = ../CS01-009.LMP;
-        symlink = "/demo.lmp";
       }
     ];
   };
@@ -96,6 +107,14 @@ in
         default = [];
       };
       postInit = mkOption {
+        type = types.lines;
+        default = "";
+      };
+      shellOnTTY1 = mkOption {
+        type = types.bool;
+        default = true;
+      };
+      inittab = mkOption {
         type = types.lines;
         default = "";
       };

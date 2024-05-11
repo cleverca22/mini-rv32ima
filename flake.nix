@@ -82,7 +82,7 @@
       let
         toplevel = (pkgs.callPackage ./os.nix { inherit nixpkgs; extraModules = extra; hostSystem = system; }).toplevel;
         output = pkgs.runCommand "build" {
-          nativeBuildInputs = [ pkgs.zip ];
+          nativeBuildInputs = [ pkgs.zip pkgs.cpio ];
           passAsFile = [ "script" ];
           script = ''
             #!/bin/sh
@@ -106,6 +106,10 @@
           cd ..
           zip packed.zip mini-rv32ima/*
           echo "file binary-dist $out/packed.zip" >> $out/nix-support/hydra-build-products
+
+          #mkdir unpacked
+          #cd unpacked
+          #cat ../mini-rv32ima/initrd | cpio -i
         '';
       in output;
     in {
