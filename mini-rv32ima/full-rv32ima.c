@@ -165,7 +165,7 @@ int main( int argc, char ** argv ) {
   }
   // The core lives at the end of RAM.
   core = (struct MiniRV32IMAState *)(ram_image + ram_amt - sizeof( struct MiniRV32IMAState ));
-  printf("MEM: 0x%08x -> 0x%08x == CORE\n", 0x80000000 + ram_amt - sizeof(struct MiniRV32IMAState), (0x80000000 + ram_amt)-1);
+  printf("MEM: 0x%08lx -> 0x%08x == CORE\n", 0x80000000 + ram_amt - sizeof(struct MiniRV32IMAState), (0x80000000 + ram_amt)-1);
   ram_amt -= sizeof(struct MiniRV32IMAState);
   uint32_t ram_size_backup = ram_amt;
   uint32_t advertised_ram_top = ram_amt - (64*1024);
@@ -216,7 +216,7 @@ restart:
 				long dtblen = ftell( f );
 				fseek( f, 0, SEEK_SET );
 				dtb_ptr = ram_amt - dtblen - sizeof( struct MiniRV32IMAState );
-                                printf("MEM: 0x%08x -> 0x%08x == INITRD\n", 0x80000000 + dtb_ptr, 0x80000000 + dtb_ptr + dtblen - 1);
+                                printf("MEM: 0x%08x -> 0x%08x == INITRD\n", (uint32_t)(0x80000000 + dtb_ptr), (uint32_t)(0x80000000 + dtb_ptr + dtblen - 1));
 				if( fread( ram_image + dtb_ptr, dtblen, 1, f ) != 1 )
 				{
 					fprintf( stderr, "Error: Could not open dtb \"%s\"\n", dtb_file_name );
@@ -255,7 +255,7 @@ restart:
 			// Load a default dtb.
 			dtb_ptr = initrd_addr + initrd_len + (64*1024);
 			memcpy(ram_image + dtb_ptr, default64mbdtb, sizeof( default64mbdtb ) );
-                        printf("MEM: 0x%08x -> 0x%08x == DTB\n", 0x80000000 + dtb_ptr, 0x80000000 + dtb_ptr + sizeof(default64mbdtb) - 1);
+                        printf("MEM: 0x%08x -> 0x%08x == DTB\n", 0x80000000 + dtb_ptr, (uint32_t)(0x80000000 + dtb_ptr + sizeof(default64mbdtb) - 1));
                         void *v_fdt = ram_image + dtb_ptr;
 			int ret = fdt_open_into(v_fdt, v_fdt, 32*1024);
                         if (ret) {
@@ -298,14 +298,21 @@ restart:
                           mmio_add_handler(0x10400000, 0x4000000, plic_load, plic_store, NULL);
                         }
                         if (enable_virtio_blk) {
-                          struct virtio_device *virtio_blk = virtio_blk_create(ram_image);
+                          uint32_t base = get_next_base(0x1000);
+                          struct virtio_device *virtio_blk = virtio_blk_create(ram_image, base);
                           virtio_add_dtb(virtio_blk, v_fdt);
                           mmio_add_handler(virtio_blk->reg_base, virtio_blk->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_blk);
                         }
                         if (enable_virtio_input) {
-                          struct virtio_device *virtio_input = virtio_input_create(ram_image);
-                          virtio_add_dtb(virtio_input, v_fdt);
-                          mmio_add_handler(virtio_input->reg_base, virtio_input->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_input);
+                          uint32_t base = get_next_base(0x1000);
+                          struct virtio_device *virtio_input_keyb = virtio_input_create(ram_image, base, false);
+                          virtio_add_dtb(virtio_input_keyb, v_fdt);
+                          mmio_add_handler(virtio_input_keyb->reg_base, virtio_input_keyb->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_input_keyb);
+
+                          base = get_next_base(0x1000);
+                          struct virtio_device *virtio_input_mouse = virtio_input_create(ram_image, base, true);
+                          virtio_add_dtb(virtio_input_mouse, v_fdt);
+                          mmio_add_handler(virtio_input_mouse->reg_base, virtio_input_mouse->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_input_mouse);
                         }
                         if (true) {
                           pl011_create(v_fdt, 0x10004000);

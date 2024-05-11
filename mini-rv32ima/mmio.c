@@ -3,6 +3,8 @@
 #include "mmio.h"
 
 struct mmio_range *root;
+static uint32_t next_base = 0x10001000;
+#define ROUNDUP(a, b) (((a) + ((b)-1)) & ~((b)-1))
 
 uint32_t mmio_routed_load(uint32_t addr) {
   //printf("mmio_routed_load(0x%x)\n", addr);
@@ -26,4 +28,11 @@ void mmio_routed_store(uint32_t addr, uint32_t val) {
       break;
     }
   }
+}
+
+uint32_t get_next_base(uint32_t size) {
+  size = ROUNDUP(size, 0x1000);
+  uint32_t ret = next_base;
+  next_base += size;
+  return ret;
 }

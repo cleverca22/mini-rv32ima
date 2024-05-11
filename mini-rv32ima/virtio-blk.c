@@ -104,6 +104,6 @@ const virtio_device_type virtio_blk_type = {
   .process_command = virtio_blk_process_command,
 };
 
-struct virtio_device *virtio_blk_create(void *ram_image) {
-  return virtio_create(ram_image, &virtio_blk_type, 0x10010000, 0x200, get_next_irq());
+struct virtio_device *virtio_blk_create(void *ram_image, uint32_t base) {
+  return virtio_create(ram_image, &virtio_blk_type, base, 0x200, get_next_irq());
 }

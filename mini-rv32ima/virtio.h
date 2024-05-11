@@ -76,6 +76,7 @@ typedef struct {
 struct virtio_device {
   int index;
   const virtio_device_type *type;
+  void *type_context;
   uint32_t reg_base;
   uint32_t reg_size;
   void *ram_image;
@@ -106,8 +107,8 @@ uint32_t virtio_mmio_load(void *dev, uint32_t offset);
 void *cast_guest_ptr(void *image, uint32_t addr);
 void virtio_flag_completion(struct virtio_device *dev, int queue, uint16_t start_idx, uint32_t written);
 void virtio_config_changed(struct virtio_device *dev);
-struct virtio_device *virtio_input_create(void *ram_image);
-struct virtio_device *virtio_blk_create(void *ram_image);
+struct virtio_device *virtio_input_create(void *ram_image, uint32_t base, bool mouse);
+struct virtio_device *virtio_blk_create(void *ram_image, uint32_t base);
 void virtio_add_dtb(struct virtio_device*, void *v_fdt);
 
 extern const virtio_device_type virtio_blk_type;

@@ -47,6 +47,7 @@ void D_PostEvent (event_t* ev)
     }
 
     events[eventhead] = *ev;
+    //printf("push %d %d\n", eventhead, used);
     eventhead = (eventhead + 1) % MAXEVENTS;
 }
 
@@ -62,8 +63,9 @@ event_t *D_PopEvent(void)
     {
         return NULL;
     }
-    
+
     result = &events[eventtail];
+    //printf("pop %d\n", eventtail);
 
     // Advance to the next event in the queue.
 

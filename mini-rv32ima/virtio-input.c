@@ -11,6 +11,12 @@
 #include "plic.h"
 #include "rawdraw_sf.h"
 
+typedef struct {
+  struct input_queue *virtio_input_queue_head;
+} virtio_input_instance;
+
+static struct virtio_device *keyb, *mouse;
+
 struct input_queue {
   uint8_t *dest;
   struct virtio_device *dev;
@@ -19,7 +25,6 @@ struct input_queue {
   struct input_queue *next;
 };
 
-struct input_queue *virtio_input_queue_head = NULL;
 static int virtio_queue_size = 0;
 static bool relative_mode = false;
 static int width = 640;
@@ -140,6 +145,7 @@ static void virtio_input_process_command(struct virtio_device *dev, struct virti
   assert(chain[0].message_len == 8);
   assert(chain[0].flags == 2);
   assert(queue == 0);
+  virtio_input_instance *ctx = dev->type_context;
 
   struct input_queue *node = malloc(sizeof(struct input_queue));
   node->dest = chain[0].message;
@@ -148,8 +154,8 @@ static void virtio_input_process_command(struct virtio_device *dev, struct virti
   node->start_idx = start_idx;
   node->next = NULL;
 
-  if (virtio_input_queue_head) {
-    struct input_queue *tail = virtio_input_queue_head;
+  if (ctx->virtio_input_queue_head) {
+    struct input_queue *tail = ctx->virtio_input_queue_head;
     //printf("initial tail -> %p", tail);
     while (tail->next) {
       tail = tail->next;
@@ -158,14 +164,14 @@ static void virtio_input_process_command(struct virtio_device *dev, struct virti
     //printf(" -> end\n");
     tail->next = node;
   } else {
-    virtio_input_queue_head = node;
+    ctx->virtio_input_queue_head = node;
   }
   virtio_queue_size++;
 }
 
-void send_event(uint16_t type, uint16_t code, uint32_t value) {
+void send_event(virtio_input_instance *ctx, uint16_t type, uint16_t code, uint32_t value) {
   //printf("send_event %d\n", virtio_queue_size);
-  struct input_queue *node = virtio_input_queue_head;
+  struct input_queue *node = ctx->virtio_input_queue_head;
   if (!node) {
     char *type_str = NULL;
     switch (type) {
@@ -190,15 +196,15 @@ void send_event(uint16_t type, uint16_t code, uint32_t value) {
   evt->code = code;
   evt->value = value;
   virtio_flag_completion(node->dev, node->queue, node->start_idx, 8);
-  virtio_input_queue_head = node->next;
+  ctx->virtio_input_queue_head = node->next;
   free(node);
   virtio_queue_size--;
 }
 
 #ifndef CNFGHTTP
 static void recenter(void) {
-  const hw = width/2;
-  const hh = height/2;
+  const int hw = width/2;
+  const int hh = height/2;
   CNFGSetMousePosition(hw, hh);
 }
 #endif
@@ -209,6 +215,7 @@ static void recenter(void) {
 // this flag tells the dups to go away
 
 void HandleKey( int keycode, int bDown ) {
+  virtio_input_instance *ctx = keyb->type_context;
   // when rawdraw is using X11, keycode comes from X11/keysymdef.h, codes like XK_BackSpace
   // XK_A/0x41/65
 
@@ -236,29 +243,50 @@ void HandleKey( int keycode, int bDown ) {
   } else
 #endif
   {
-    send_event(EV_KEY, linux_code, bDown);
-    send_event(EV_SYN, 0, 0);
+    send_event(ctx, EV_KEY, linux_code, bDown);
+    send_event(ctx, EV_SYN, 0, 0);
   }
 }
 
 void HandleMotion( int x, int y, int mask ) {
+  if (mouse == NULL) {
+    puts("no mouse ptr");
+    return;
+  }
+  virtio_input_instance *ctx = mouse->type_context;
   if (relative_mode) {
-    const hw = width/2;
-    const hh = height/2;
+    const int hw = width/2;
+    const int hh = height/2;
     const int delta_x = x - hw;
     const int delta_y = y - hh;
     if ((delta_x != 0) || (delta_y != 0)) {
       //printf("HandleMotion(%3d, %3d)\n", delta_x, delta_y);
-      send_event(EV_REL, REL_X, delta_x);
-      send_event(EV_REL, REL_Y, delta_y);
+      send_event(ctx, EV_REL, REL_X, delta_x);
+      send_event(ctx, EV_REL, REL_Y, delta_y);
       recenter();
     }
   } else {
     //printf("HandleMotion(%3d, %3d)\n", x, y);
-    send_event(EV_ABS, ABS_X, x);
-    send_event(EV_ABS, ABS_Y, y);
+    send_event(ctx, EV_ABS, ABS_X, x);
+    send_event(ctx, EV_ABS, ABS_Y, y);
   }
-  send_event(EV_SYN, 0, 0);
+  send_event(ctx, EV_SYN, 0, 0);
+}
+
+void HandleButton( int x, int y, int button, int bDown ) {
+  virtio_input_instance *ctx = mouse->type_context;
+  switch (button) {
+  case 1:
+    send_event(ctx, EV_KEY, BTN_LEFT, bDown);
+    break;
+  case 2:
+    send_event(ctx, EV_KEY, BTN_MIDDLE, bDown);
+    break;
+  case 3:
+    send_event(ctx, EV_KEY, BTN_RIGHT, bDown);
+    break;
+  }
+  send_event(ctx, EV_SYN, 0, 0);
 }
 
 const virtio_device_type virtio_input_type = {
@@ -269,6 +297,16 @@ const virtio_device_type virtio_input_type = {
   .process_command = virtio_input_process_command,
 };
 
-struct virtio_device *virtio_input_create(void *ram_image) {
-  return virtio_create(ram_image, &virtio_input_type, 0x10020000, 0x200, get_next_irq());
+struct virtio_device *virtio_input_create(void *ram_image, uint32_t base, bool mouse_mode) {
+  struct virtio_device *dev = virtio_create(ram_image, &virtio_input_type, base, 0x200, get_next_irq());
+  virtio_input_instance *ctx = malloc(sizeof(virtio_input_instance));
+  bzero(ctx, sizeof(virtio_input_instance));
+  dev->type_context = ctx;
+
+  if (mouse_mode) {
+    mouse = dev;
+  } else {
+    keyb = dev;
+  }
+  return dev;
 }

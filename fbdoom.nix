@@ -19,7 +19,7 @@ stdenv.mkDerivation {
   '';
   postPatch = ''
     sed -i 's/input_tty/input_evdev/' Makefile
-    cp ${./i_input_evdev.c} i_input_evdev.c
+    cp -v ${./fbdoom-overlay}/* .
   '';
   enableParallelBuilding = true;
   installPhase = ''

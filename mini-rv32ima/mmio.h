@@ -30,3 +30,5 @@ static inline struct mmio_range *mmio_add_handler(uint32_t addr, uint32_t size, 
   root = rng;
   return rng;
 }
+
+uint32_t get_next_base(uint32_t size);
