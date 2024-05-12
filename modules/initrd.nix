@@ -13,7 +13,6 @@ let
     done
     for x in $out/bin/*; do
       if [[ -f $x && ! -L $x ]]; then
-        set -x
         echo its a file $x
         ldso=$(patchelf --print-interpreter $x)
         cp $ldso $out/lib
@@ -21,8 +20,6 @@ let
         chmod +w $out/lib/$(basename $ldso)
         chmod +w $x
         patchelf --set-interpreter $out/lib/$(basename $ldso) $x
-        patchelf --set-rpath /lib/ $x
-        set +x
       fi
     done
   '';

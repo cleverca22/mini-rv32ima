@@ -6,5 +6,6 @@ runCommandCC "evtest" {
 } ''
   mkdir -p $out/bin
   cp $src evtest.c
-  $CC evtest.c -o $out/bin/evtest2 -fpie -pie -s -Os
+  $CC evtest.c -o $out/bin/evtest2
+  fixupPhase
 ''

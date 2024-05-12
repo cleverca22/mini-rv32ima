@@ -23,10 +23,11 @@ let
       CONFIG_HUSH_EXPORT y
       CONFIG_HUSH_INTERACTIVE y
       CONFIG_INIT y
+      CONFIG_LN y
       CONFIG_LS y
-      CONFIG_PS y
       CONFIG_MKNOD y
       CONFIG_MKTEMP n
+      CONFIG_PS y
       CONFIG_MOUNT y
       CONFIG_PING n
       CONFIG_PING6 n
