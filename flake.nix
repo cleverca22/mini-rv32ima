@@ -45,26 +45,23 @@
   (utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
   let
     pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
-    mkDoTest = extra:
+    mkDoTest = http: extra:
     let
       os = pkgs.callPackage ./os.nix { inherit nixpkgs; extraModules = extra; hostSystem = system; };
     in
       pkgs.writeShellScriptBin "dotest" ''
-        ${pkgs.mini-rv32ima}/bin/full-rv32ima -f ${os.toplevel}/Image -i ${os.toplevel}/initrd
+        ${pkgs.mini-rv32ima.override { inherit http; }}/bin/full-rv32ima -f ${os.toplevel}/Image -i ${os.toplevel}/initrd
       '';
   in {
     packages = rec {
       inherit (pkgs) mini-rv32ima;
       static-rv32ima = pkgs.pkgsStatic.mini-rv32ima;
-      default = pkgs.writeShellScriptBin "dotest" ''
-        ${pkgs.mini-rv32ima}/bin/full-rv32ima -f ${os}/Image -i ${os}/initrd
-      '';
-      http = pkgs.writeShellScriptBin "dotest" ''
-        ${pkgs.mini-rv32ima.override { http=true; }}/bin/full-rv32ima -f ${os}/Image -i ${os}/initrd
-      '';
+      default = mkDoTest false [];
+      http = mkDoTest true [];
       static-http = pkgs.pkgsStatic.mini-rv32ima.override { http=true; };
       os = (pkgs.callPackage ./os.nix { inherit nixpkgs; hostSystem = system; }).toplevel;
-      doom = mkDoTest [ ./configuration-fbdoom.nix ];
+      doom = mkDoTest false [ ./configuration-fbdoom.nix ];
+      doom-http = mkDoTest true [ ./configuration-fbdoom.nix ];
     };
     devShells = {
       kernel = pkgs.pkgsCross.riscv32-nommu.linux.overrideDerivation (drv: {
