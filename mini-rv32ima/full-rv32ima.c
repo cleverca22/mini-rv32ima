@@ -20,6 +20,7 @@
 #include "plic.h"
 #include "mmio.h"
 #include "pl011.h"
+#include "stdio.h"
 
 #define ROUNDUP(a, b) (((a) + ((b)-1)) & ~((b)-1))
 
@@ -37,8 +38,6 @@ static uint32_t HandleControlLoad( uint32_t addy );
 static void HandleOtherCSRWrite( uint8_t * image, uint16_t csrno, uint32_t value );
 static int32_t HandleOtherCSRRead( uint8_t * image, uint16_t csrno );
 static void MiniSleep(void);
-static int IsKBHit(void);
-static int ReadKBByte(void);
 static uint32_t uart_load(void *state, uint32_t addr);
 static void uart_store(void *state, uint32_t addr, uint32_t val);
 
@@ -109,9 +108,11 @@ int main( int argc, char ** argv ) {
   const char * image_file_name = 0;
   const char *initrd_name = NULL;
   const char * dtb_file_name = 0;
-  bool enable_gfx = true;
-  bool enable_virtio_blk = false;
-  bool enable_virtio_input = true;
+  const bool enable_gfx = true;
+  const bool enable_virtio_blk = false;
+#ifdef WITH_INPUT
+  const bool enable_virtio_input = true;
+#endif
   bool have_plic = true;
   const char * kernel_command_line = "earlycon=uart8250,mmio,0x10000000,1000000 console=tty1 console=ttyAMA0 no_hash_pointers";
   void *fb_virt_ptr = NULL;
@@ -303,6 +304,7 @@ restart:
                           virtio_add_dtb(virtio_blk, v_fdt);
                           mmio_add_handler(virtio_blk->reg_base, virtio_blk->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_blk);
                         }
+#ifdef WITH_INPUT
                         if (enable_virtio_input) {
                           uint32_t base = get_next_base(0x1000);
                           struct virtio_device *virtio_input_keyb = virtio_input_create(ram_image, base, false);
@@ -314,6 +316,7 @@ restart:
                           virtio_add_dtb(virtio_input_mouse, v_fdt);
                           mmio_add_handler(virtio_input_mouse->reg_base, virtio_input_mouse->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_input_mouse);
                         }
+#endif
                         if (true) {
                           pl011_create(v_fdt, 0x10004000);
                         }
@@ -465,49 +468,7 @@ static uint64_t GetTimeMicroseconds()
 }
 
 
-static int IsKBHit()
-{
-	return _kbhit();
-}
 
-static int ReadKBByte()
-{
-	// This code is kind of tricky, but used to convert windows arrow keys
-	// to VT100 arrow keys.
-	static int is_escape_sequence = 0;
-	int r;
-	if( is_escape_sequence == 1 )
-	{
-		is_escape_sequence++;
-		return '[';
-	}
-
-	r = _getch();
-
-	if( is_escape_sequence )
-	{
-		is_escape_sequence = 0;
-		switch( r )
-		{
-			case 'H': return 'A'; // Up
-			case 'P': return 'B'; // Down
-			case 'K': return 'D'; // Left
-			case 'M': return 'C'; // Right
-			case 'G': return 'H'; // Home
-			case 'O': return 'F'; // End
-			default: return r; // Unknown code.
-		}
-	}
-	else
-	{
-		switch( r )
-		{
-			case 13: return 10; //cr->lf
-			case 224: is_escape_sequence = 1; return 27; // Escape arrow keys
-			default: return r;
-		}
-	}
-}
 
 #else
 
@@ -554,29 +515,6 @@ static uint64_t GetTimeMicroseconds(void)
 	struct timeval tv;
 	gettimeofday( &tv, 0 );
 	return tv.tv_usec + ((uint64_t)(tv.tv_sec)) * 1000000LL;
-}
-
-static int is_eofd;
-
-static int ReadKBByte(void)
-{
-	if( is_eofd ) return 0xffffffff;
-	char rxchar = 0;
-	int rread = read(fileno(stdin), (char*)&rxchar, 1);
-
-	if( rread > 0 ) // Tricky: getchar can't be used with arrow keys.
-		return rxchar;
-	else
-		return -1;
-}
-
-static int IsKBHit(void)
-{
-	if( is_eofd ) return -1;
-	int byteswaiting;
-	ioctl(0, FIONREAD, &byteswaiting);
-	if( !byteswaiting && write( fileno(stdin), 0, 0 ) != 0 ) { is_eofd = 1; return -1; } // Is end-of-file for 
-	return !!byteswaiting;
 }
 
 

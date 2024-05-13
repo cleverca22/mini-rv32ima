@@ -3,16 +3,33 @@ all : mini-rv32ima mini-rv32ima.flt
 mini-rv32ima : mini-rv32ima.c mini-rv32ima.h default64mbdtc.h
 	# for debug
 	${CC} -o $@ $< -g -O2 -Wall
-	${CC} -o $@.tiny $< -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -fwhole-program -s
+	${CC} -o $@-tiny $< -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -fwhole-program -s
 
-SRCS := plic.c virtio.c virtio-blk.c virtio-input.c full-rv32ima.c mmio.c pl011.c
+CFLAGS := -ffunction-sections -fdata-sections -Wall -Wstrict-prototypes -DCNFG_WINDOWS_DISABLE_BATCH
+LIBS := -lfdt
+SRCS := plic.c virtio.c full-rv32ima.c mmio.c pl011.c stdio.c
+ifeq ($(BLOCK),1)
+  SRCS += virtio-blk.c
+  CFLAGS += -DWITH_BLOCK
+endif
+ifeq ($(INPUT),1)
+  SRCS += virtio-input.c
+  CFLAGS += -DWITH_INPUT
+endif
 OBJ := $(addsuffix .o, $(basename $(SRCS)))
 
-CFLAGS := -ffunction-sections -fdata-sections -Wall -Wstrict-prototypes
-LIBS := -lfdt -lX11
-ifeq ($(STATIC),1)
-LIBS += -lxcb -lXau -lXdmcp
+ifeq ($(WINDOWS),1)
+LIBS += -lgdi32
 endif
+
+ifeq ($(X11),1)
+  CFLAGS += -DWITH_X11
+  LIBS += -lX11
+  ifeq ($(STATIC),1)
+    LIBS += -lxcb -lXau -lXdmcp
+  endif
+endif
+
 LFLAGS := $(LIBS) -Wl,--gc-sections
 
 ifeq ($(D),1)
@@ -39,8 +56,9 @@ virtio-input.o: virtio-input.c virtio.h x11-key-lut.h plic.h
 virtio-blk.o: virtio-blk.c virtio.h
 virtio.o: virtio.c virtio.h plic.h
 plic.o: plic.c plic.h
-full-rv32ima.o: full-rv32ima.c default64mbdtc.h rawdraw_sf.h virtio.h plic.h mmio.h pl011.h
-pl011.o: pl011.c pl011.h plic.h mmio.h
+full-rv32ima.o: full-rv32ima.c default64mbdtc.h rawdraw_sf.h virtio.h plic.h mmio.h pl011.h stdio.h
+pl011.o: pl011.c pl011.h plic.h mmio.h stdio.h
+stdio.o: stdio.c stdio.h
 
 amalgamation.c: $(SRCS)
 	cat $(SRCS) > $@
@@ -54,12 +72,14 @@ full-rv32ima.wholeprog: amalgamation.c default64mbdtc.h rawdraw_sf.h virtio.h pl
 %.o: %.c
 	${CC} -c -o $@ $< ${CFLAGS}
 
+ifeq ($(X11),1)
 gen-x11-lut: gen-x11-lut.c
-	${CC} -o $@ $< -Wall
+	gcc -o $@ $< -Wall
 
 x11-key-lut.h: gen-x11-lut
 	./gen-x11-lut > $@.temp
 	mv $@.temp $@
+endif
 
 mini-rv32ima.flt : mini-rv32ima.c mini-rv32ima.h
 	../buildroot/output/host/bin/riscv32-buildroot-linux-uclibc-gcc -O4 -funroll-loops -s -march=rv32ima -mabi=ilp32 -fPIC $< -Wl,-elf2flt=-r -o $@
@@ -110,7 +130,7 @@ testdlimage : mini-rv32ima DownloadedImage
 bintoh :
 	echo "#include <stdio.h>" > bintoh.c
 	echo "int main(int argc,char ** argv) {if(argc==1) return -1; int c, p=0; printf( \"static const unsigned char %s[] = {\", argv[1] ); while( ( c = getchar() ) != EOF ) printf( \"0x%02x,%c\", c, (((p++)&15)==15)?10:' '); printf( \"};\" ); return 0; }" >> bintoh.c
-	${CC} bintoh.c -o bintoh
+	gcc bintoh.c -o bintoh
 
 default64mbdtc.h : sixtyfourmb.dtb bintoh
 	./bintoh default64mbdtb < $< > $@

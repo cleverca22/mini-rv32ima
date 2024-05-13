@@ -1,14 +1,13 @@
 #include <libfdt.h>
 #include <stdio.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
 
 #include "pl011.h"
 #include "plic.h"
 #include "mmio.h"
+#include "stdio.h"
 
 static int uart_irq;
-static int is_eofd;
 uint32_t irq_status = 0;
 uint32_t irq_mask = 0;
 
@@ -18,27 +17,6 @@ static void pl011_maybe_irq(void) {
   } else {
     plic_clear_irq(uart_irq);
   }
-}
-
-static int ReadKBByte(void)
-{
-	if( is_eofd ) return 0xffffffff;
-	char rxchar = 0;
-	int rread = read(fileno(stdin), (char*)&rxchar, 1);
-
-	if( rread > 0 ) // Tricky: getchar can't be used with arrow keys.
-		return rxchar;
-	else
-		return -1;
-}
-
-static int IsKBHit(void)
-{
-	if( is_eofd ) return -1;
-	int byteswaiting;
-	ioctl(0, FIONREAD, &byteswaiting);
-	if( !byteswaiting && write( fileno(stdin), 0, 0 ) != 0 ) { is_eofd = 1; return -1; } // Is end-of-file for 
-	return !!byteswaiting;
 }
 
 void pl011_poll(void) {
