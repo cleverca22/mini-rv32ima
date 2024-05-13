@@ -44,7 +44,10 @@
   in
   (utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
   let
-    pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
+    pkgs = import nixpkgs {
+      inherit system; overlays = [ overlay ];
+      config.allowUnsupportedSystem = true;
+    };
     mkDoTest = http: extra:
     let
       os = pkgs.callPackage ./os.nix { inherit nixpkgs; extraModules = extra; hostSystem = system; };
@@ -56,6 +59,7 @@
     packages = rec {
       inherit (pkgs) mini-rv32ima;
       static-rv32ima = pkgs.pkgsStatic.mini-rv32ima;
+      windows-rv32ima = pkgs.pkgsCross.mingwW64.mini-rv32ima;
       default = mkDoTest false [];
       http = mkDoTest true [];
       static-http = pkgs.pkgsStatic.mini-rv32ima.override { http=true; };
@@ -113,6 +117,7 @@
       fbdoom = mkImage [ ./configuration-fbdoom.nix ];
       base = mkImage [ ];
       static-rv32ima = self.packages.${system}.static-rv32ima;
+      windows-rv32ima = self.packages.${system}.windows-rv32ima;
     };
   })) // {
     nixConfig = {
