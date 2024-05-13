@@ -15,5 +15,5 @@ stdenv.mkDerivation {
   '';
   # dontStrip = true;
   STATIC = stdenv.hostPlatform.isStatic;
-  buildInputs = [ dtc xorg.libX11 ];
+  buildInputs = [ dtc ] ++ lib.optional stdenv.hostPlatform.isLinux xorg.libX11;
 }
