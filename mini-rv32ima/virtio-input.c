@@ -1,11 +1,11 @@
 #include <assert.h>
-#include <linux/input.h>
+#include <linux/input-event-codes.h>
 #include <linux/virtio_input.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <X11/keysymdef.h>
+//#include <X11/keysymdef.h>
 #include "virtio.h"
 #include "x11-key-lut.h"
 #include "plic.h"
@@ -221,9 +221,11 @@ void HandleKey( int keycode, int bDown ) {
 
   // when rawdraw is using http, keycode is from KeyboardEvent.keyCode
   // A is 0x41/65, when both uppercase and lowercase
+#ifdef WITH_X11
   if (keycode == CNFG_X11_EXPOSE) {
     return;
   }
+#endif
   //printf("virtio input HandleKey: %d/0x%x %d\n", keycode, keycode, bDown);
   int linux_code = translate_keycode(keycode);
   if (linux_code == 0) {

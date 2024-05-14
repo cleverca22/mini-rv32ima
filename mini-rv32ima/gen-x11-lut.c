@@ -23,10 +23,13 @@ const struct key_entry x11_table[65536] = {
   [0x27] = { .linux_code = KEY_RIGHT, .linux_name = "KEY_RIGHT" },
   [0x28] = { .linux_code = KEY_DOWN, .linux_name = "KEY_DOWN" },
   [0x43] = { .linux_code = KEY_C, .linux_name = "KEY_C" },
+  [0x44] = { .linux_code = KEY_D, .linux_name = "KEY_D" },
   [0x45] = { .linux_code = KEY_E, .linux_name = "KEY_E" },
   [0x46] = { .linux_code = KEY_F, .linux_name = "KEY_F" },
   [0x53] = { .linux_code = KEY_S, .linux_name = "KEY_S" },
   [0x54] = { .linux_code = KEY_T, .linux_name = "KEY_T" },
+  [0x57] = { .linux_code = KEY_W, .linux_name = "KEY_W" },
+  [0x91] = { .linux_code = KEY_SCROLLLOCK, .linux_name = "KEY_SCROLLLOCK" },
 
   // x11
   [XK_0] = { .linux_code = KEY_0, .linux_name = "KEY_0" },

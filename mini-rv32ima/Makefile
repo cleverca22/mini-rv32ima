@@ -72,14 +72,12 @@ full-rv32ima.wholeprog: amalgamation.c default64mbdtc.h rawdraw_sf.h virtio.h pl
 %.o: %.c
 	${CC} -c -o $@ $< ${CFLAGS}
 
-ifeq ($(X11),1)
 gen-x11-lut: gen-x11-lut.c
 	gcc -o $@ $< -Wall
 
 x11-key-lut.h: gen-x11-lut
 	./gen-x11-lut > $@.temp
 	mv $@.temp $@
-endif
 
 mini-rv32ima.flt : mini-rv32ima.c mini-rv32ima.h
 	../buildroot/output/host/bin/riscv32-buildroot-linux-uclibc-gcc -O4 -funroll-loops -s -march=rv32ima -mabi=ilp32 -fPIC $< -Wl,-elf2flt=-r -o $@
