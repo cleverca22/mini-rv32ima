@@ -3,6 +3,9 @@
 static int is_eofd;
 
 #if defined(WINDOWS) || defined(WIN32) || defined(_WIN32)
+
+#include <conio.h>
+
 int ReadKBByte()
 {
 	// This code is kind of tricky, but used to convert windows arrow keys
@@ -46,6 +49,7 @@ int IsKBHit() {
 }
 #else
 #include <sys/ioctl.h>
+#include <stdio.h>
 
 int ReadKBByte(void)
 {

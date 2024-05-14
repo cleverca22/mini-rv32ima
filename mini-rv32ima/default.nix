@@ -1,4 +1,4 @@
-{ lib, stdenv, dtc, xorg, mesa, http ? false, gcc }:
+{ lib, stdenv, dtc, xorg, mesa, http ? false, buildPackages }:
 
 stdenv.mkDerivation {
   src = ./.;
@@ -18,7 +18,9 @@ stdenv.mkDerivation {
     rm -rf $out/nix-support
   '';
   # dontStrip = true;
-  nativeBuildInputs = [ gcc.__spliced.buildBuild ];
+  #nativeBuildInputs = [ gcc.__spliced.buildBuild ];
+  nativeBuildInputs = lib.optional stdenv.hostPlatform.isLinux xorg.libX11;
+  depsBuildBuild = [ buildPackages.stdenv.cc ];
   STATIC = stdenv.hostPlatform.isStatic;
   buildInputs = [ dtc ] ++ lib.optional stdenv.hostPlatform.isLinux xorg.libX11;
 }

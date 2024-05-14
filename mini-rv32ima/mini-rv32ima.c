@@ -6,10 +6,6 @@
 #include <string.h>
 #include <math.h>
 
-#ifdef DTB_SUPPORT
-#include <libfdt.h>
-#endif
-
 #include "default64mbdtc.h"
 
 // Just default RAM amount is 64MB.
@@ -66,7 +62,6 @@ int main( int argc, char ** argv )
 	int single_step = 0;
 	int dtb_ptr = 0;
 	const char * image_file_name = 0;
-        const char *initrd_name = NULL;
 	const char * dtb_file_name = 0;
 	for( i = 1; i < argc; i++ )
 	{
@@ -82,7 +77,6 @@ int main( int argc, char ** argv )
 				case 'c': if( ++i < argc ) instct = SimpleReadNumberInt( argv[i], -1 ); break;
 				case 'k': if( ++i < argc ) kernel_command_line = argv[i]; break;
 				case 'f': image_file_name = (++i<argc)?argv[i]:0; break;
-                                case 'i': initrd_name = (++i<argc)?argv[i]:0; break;
 				case 'b': dtb_file_name = (++i<argc)?argv[i]:0; break;
 				case 'l': param_continue = 1; fixed_update = 1; break;
 				case 'p': param_continue = 1; do_sleep = 0; break;
@@ -173,70 +167,12 @@ restart:
 		else
 		{
 			// Load a default dtb.
-#if !defined(DTB_SUPPORT)
 			dtb_ptr = ram_amt - sizeof(default64mbdtb) - sizeof( struct MiniRV32IMAState );
 			memcpy( ram_image + dtb_ptr, default64mbdtb, sizeof( default64mbdtb ) );
 			if( kernel_command_line )
 			{
 				strncpy( (char*)( ram_image + dtb_ptr + 0xc0 ), kernel_command_line, 54 );
 			}
-#else
-			dtb_ptr = ram_amt - (64 * 1024);
-			memcpy(ram_image + dtb_ptr, default64mbdtb, sizeof( default64mbdtb ) );
-                        void *v_fdt = ram_image + dtb_ptr;
-			int ret = fdt_open_into(v_fdt, v_fdt, 32*1024);
-                        if (ret) {
-                          printf("ERROR: fdt_open_into() == %d\n", ret);
-                          return -1;
-                        }
-                        uint32_t initrd_addr = 0;
-                        uint32_t initrd_len = 0;
-                        if (initrd_name) {
-                          initrd_addr = image_size + (1024*1024);
-                          initrd_addr += 0x1000 - (initrd_addr & 0xfff);
-                          printf("loading %s to 0x%x\n", initrd_name, initrd_addr);
-                          FILE *fh = fopen(initrd_name, "rb");
-                          if( !fh || ferror( fh ) ) {
-                            fprintf( stderr, "Error: \"%s\" not found\n", initrd_name);
-                            return -1;
-                          }
-                          fseek( fh, 0, SEEK_END );
-                          initrd_len = ftell(fh);
-                          fseek(fh, 0, SEEK_SET);
-                          if ((initrd_addr + initrd_len) > ram_amt) {
-                            fprintf( stderr, "Error: Could not fit initrd image (%d bytes) into %d\n", initrd_len, ram_amt);
-                            return -1;
-                          }
-                          if (fread(ram_image + initrd_addr, initrd_len, 1, fh) != 1) {
-                            fprintf( stderr, "Error: Could not load initrd.\n" );
-                            return -1;
-                          }
-                          fclose(fh);
-                        }
-                        int chosen = fdt_path_offset(v_fdt, "/chosen");
-                        if (chosen < 0) {
-                          puts("ERROR: no chosen node in fdt");
-                          return -1;
-                        } else {
-                          if (kernel_command_line) {
-                            fdt_setprop_string(v_fdt, chosen, "bootargs", kernel_command_line);
-                          }
-                          if (initrd_len > 0) {
-                            uint32_t start = 0x80000000 + initrd_addr;
-                            uint32_t end = start + initrd_len;
-                            fdt_setprop_u32(v_fdt, chosen, "linux,initrd-start", start);
-                            fdt_setprop_u32(v_fdt, chosen, "linux,initrd-end", end);
-                          }
-                        }
-                        int memory = fdt_path_offset(v_fdt, "/memory@80000000");
-                        if (memory > 0) {
-                          struct mem_entry memmap[] = {
-                            { .address = cpu_to_fdt64(0x80000000), .size = cpu_to_fdt64(ram_amt - (16*1024)) },
-                          };
-                          printf("0x%lx 0x%lx\n", memmap[0].address, memmap[0].size);
-                          fdt_setprop(v_fdt, memory, "reg", (void*) memmap, sizeof(memmap));
-                        }
-#endif
 		}
 	}
 
