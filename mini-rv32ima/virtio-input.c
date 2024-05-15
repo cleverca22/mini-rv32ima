@@ -215,6 +215,7 @@ static void recenter(void) {
 // this flag tells the dups to go away
 
 void HandleKey( int keycode, int bDown ) {
+  assert(keyb);
   virtio_input_instance *ctx = keyb->type_context;
   // when rawdraw is using X11, keycode comes from X11/keysymdef.h, codes like XK_BackSpace
   // XK_A/0x41/65

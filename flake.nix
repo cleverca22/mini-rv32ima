@@ -66,6 +66,11 @@
       os = (pkgs.callPackage ./os.nix { inherit nixpkgs; hostSystem = system; }).toplevel;
       doom = mkDoTest false [ ./configuration-fbdoom.nix ];
       doom-http = mkDoTest true [ ./configuration-fbdoom.nix ];
+      windows-test = pkgs.writeShellScriptBin "windows-test" ''
+        export PATH=$PATH:${pkgs.wine64}/bin/
+        ls -lh ${windows-rv32ima}/bin/
+        wine64 ${windows-rv32ima}/bin/full-rv32ima.exe -f ${os}/Image -i ${os}/initrd
+      '';
     };
     devShells = {
       kernel = pkgs.pkgsCross.riscv32-nommu.linux.overrideDerivation (drv: {

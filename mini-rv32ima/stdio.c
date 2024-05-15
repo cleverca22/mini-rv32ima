@@ -45,7 +45,9 @@ int ReadKBByte()
 	}
 }
 int IsKBHit() {
-  return _kbhit();
+  int ret = _kbhit();
+  //printf("IsKBHit %d\n", ret);
+  return ret;
 }
 #else
 #include <sys/ioctl.h>

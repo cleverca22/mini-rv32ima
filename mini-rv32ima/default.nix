@@ -18,7 +18,6 @@ stdenv.mkDerivation {
     rm -rf $out/nix-support
   '';
   # dontStrip = true;
-  #nativeBuildInputs = [ gcc.__spliced.buildBuild ];
   nativeBuildInputs = [ xorg.libX11 ];
   depsBuildBuild = [ buildPackages.stdenv.cc ];
   STATIC = stdenv.hostPlatform.isStatic;

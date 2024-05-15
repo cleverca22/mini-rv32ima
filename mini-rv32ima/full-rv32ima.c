@@ -25,7 +25,10 @@
 #define ROUNDUP(a, b) (((a) + ((b)-1)) & ~((b)-1))
 
 // Just default RAM amount is 64MB.
-uint32_t ram_amt = 128*1024*1024;
+uint32_t ram_amt = 64*1024*1024;
+const int w = 640;
+const int h = 480;
+const int bpp = 4;
 int fail_on_all_faults = 0;
 
 static int64_t SimpleReadNumberInt( const char * number, int64_t defaultNumber );
@@ -95,25 +98,195 @@ void *cast_guest_ptr(void *image, uint32_t addr) {
   return image + addr;
 }
 
+uint32_t next_guest_alloc = MINIRV32_RAM_IMAGE_OFFSET;
+uint32_t next_guest_top_alloc = 0;
+
+uint32_t guest_alloc(uint32_t size, const char *name) {
+  uint32_t ret = next_guest_alloc;
+  uint32_t size_2 = ROUNDUP(size, 4096);
+  next_guest_alloc += size_2;
+  printf("ALLOC: 0x%08x + 0x%08x == %s\n", ret, size, name);
+  return ret;
+}
+
+uint32_t guest_top_alloc(uint32_t size, const char *name) {
+  uint32_t size_2 = ROUNDUP(size, 4096);
+  uint32_t ret = next_guest_top_alloc - size_2;
+  next_guest_top_alloc -= size_2;
+  next_guest_top_alloc &= ~0xfff;
+  ret &= ~0xfff;
+  printf("ALLOC: 0x%08x + 0x%08x == %s\n", ret, size, name);
+  return ret;
+}
+
+void load_kernel(const char *image_file_name) {
+  FILE * f = fopen( image_file_name, "rb" );
+  if( !f || ferror( f ) ) {
+    fprintf( stderr, "Error: \"%s\" not found\n", image_file_name );
+    exit(-5);
+  }
+  fseek( f, 0, SEEK_END );
+  long flen = ftell( f );
+  fseek( f, 0, SEEK_SET );
+  if( flen > ram_amt ) {
+    fprintf( stderr, "Error: Could not fit RAM image (%ld bytes) into %d\n", flen, ram_amt );
+    exit(-6);
+  }
+  uint32_t kernel_base = guest_alloc(flen + (512*1024), "KERNEL");
+  void *kernel_ptr = cast_guest_ptr(ram_image, kernel_base);
+  if( fread(kernel_ptr, flen, 1, f ) != 1) {
+    fprintf( stderr, "Error: Could not load image.\n" );
+    exit(-7);
+  }
+  fclose( f );
+}
+
+void load_initrd(const char *initrd_name, uint32_t *addr, uint32_t *size) {
+  FILE *fh = fopen(initrd_name, "rb");
+  if( !fh || ferror( fh ) ) {
+    fprintf( stderr, "Error: \"%s\" not found\n", initrd_name);
+    exit(-1);
+  }
+  fseek( fh, 0, SEEK_END );
+  *size = ftell(fh);
+  fseek(fh, 0, SEEK_SET);
+  *addr = guest_alloc(*size, "INITRD");
+  void *initrd_host_ptr = cast_guest_ptr(ram_image, *addr);
+  printf("loading %s to 0x%x\n", initrd_name, *addr);
+  printf("MEM: 0x%08x -> 0x%08x == INITRD\n", 0x80000000 + *addr, 0x80000000 + *addr + *size - 1);
+  if (fread(initrd_host_ptr, *size, 1, fh) != 1) {
+    fprintf( stderr, "Error: Could not load initrd.\n" );
+    exit(-1);
+  }
+  fclose(fh);
+}
+
+void load_dtb(const char *dtb_name, uint32_t *dtb_addr) {
+  uint32_t dtb_ptr;
+  if (dtb_name) {
+    FILE *f = fopen( dtb_name, "rb" );
+    if( !f || ferror( f ) ) {
+      fprintf( stderr, "Error: \"%s\" not found\n", dtb_name );
+      exit(-5);
+    }
+    fseek( f, 0, SEEK_END );
+    long dtblen = ftell( f );
+    fseek( f, 0, SEEK_SET );
+    dtb_ptr = guest_alloc(64 * 1024, "DTB");
+
+    printf("MEM: 0x%08x -> 0x%08x == INITRD\n", (uint32_t)(0x80000000 + dtb_ptr), (uint32_t)(0x80000000 + dtb_ptr + dtblen - 1));
+    if( fread( ram_image + dtb_ptr, dtblen, 1, f ) != 1 ) {
+      fprintf( stderr, "Error: Could not open dtb \"%s\"\n", dtb_name );
+      exit(-9);
+    }
+    fclose( f );
+  } else {
+    // Load a default dtb.
+    dtb_ptr = guest_alloc(64 * 1024, "DTB");
+    void *host_dtb_ptr = cast_guest_ptr(ram_image, dtb_ptr);
+    memcpy(host_dtb_ptr, default64mbdtb, sizeof( default64mbdtb ) );
+  }
+  *dtb_addr = dtb_ptr;
+}
+
+void patch_dtb_gfx(void *v_fdt, void **fb_virt_ptr) {
+  const int bytes_per_frame = w * h * bpp;
+  const int size_rounded_up = ROUNDUP(bytes_per_frame,4096);
+
+  uint32_t guest_ptr = guest_top_alloc(size_rounded_up, "FB");
+
+  int system = fdt_add_subnode(v_fdt, 0, "system");
+  fdt_setprop_string(v_fdt, system, "compatible", "simple-bus");
+  fdt_setprop_u32(v_fdt, system, "#address-cells", 1);
+  fdt_setprop_u32(v_fdt, system, "#size-cells", 1);
+  fdt_setprop(v_fdt, system, "ranges", NULL, 0);
+
+  // FB_SIMPLE=y in linux
+  int fb = fdt_add_subnode(v_fdt, system, "framebuffer");
+  fdt_setprop_string(v_fdt, fb, "compatible", "simple-framebuffer");
+  fdt_appendprop_addrrange(v_fdt, system, fb, "reg", guest_ptr, bytes_per_frame);
+  fdt_setprop_u32(v_fdt, fb, "width", w);
+  fdt_setprop_u32(v_fdt, fb, "height", h);
+  fdt_setprop_u32(v_fdt, fb, "stride", w*bpp);
+  fdt_setprop_string(v_fdt, fb, "format", "a8r8g8b8");
+  *fb_virt_ptr = cast_guest_ptr(ram_image, guest_ptr);
+}
+
+void patch_dtb(uint32_t dtb_ptr, bool enable_gfx, void **fb_virt_ptr, bool enable_virtio_blk, bool enable_virtio_input, const char *kernel_command_line, uint32_t initrd_addr, uint32_t initrd_len) {
+  void *v_fdt = cast_guest_ptr(ram_image, dtb_ptr);
+  int ret = fdt_open_into(v_fdt, v_fdt, 64*1024);
+  if (ret) {
+    printf("ERROR: fdt_open_into() == %d\n", ret);
+    exit(-1);
+  }
+  if (enable_gfx) patch_dtb_gfx(v_fdt, fb_virt_ptr);
+  {
+    int soc = fdt_path_offset(v_fdt, "/soc");
+    int plic = fdt_add_subnode(v_fdt, soc, "plic");
+    fdt_setprop_string(v_fdt, plic, "status", "okay");
+    mmio_add_handler(0x10400000, 0x4000000, plic_load, plic_store, NULL);
+  }
+  if (enable_virtio_blk) {
+    uint32_t base = get_next_base(0x1000);
+    struct virtio_device *virtio_blk = virtio_blk_create(ram_image, base);
+    virtio_add_dtb(virtio_blk, v_fdt);
+    mmio_add_handler(virtio_blk->reg_base, virtio_blk->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_blk);
+  }
+#ifdef WITH_INPUT
+  if (enable_virtio_input) {
+    uint32_t base = get_next_base(0x1000);
+    struct virtio_device *virtio_input_keyb = virtio_input_create(ram_image, base, false);
+    virtio_add_dtb(virtio_input_keyb, v_fdt);
+    mmio_add_handler(virtio_input_keyb->reg_base, virtio_input_keyb->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_input_keyb);
+
+    base = get_next_base(0x1000);
+    struct virtio_device *virtio_input_mouse = virtio_input_create(ram_image, base, true);
+    virtio_add_dtb(virtio_input_mouse, v_fdt);
+    mmio_add_handler(virtio_input_mouse->reg_base, virtio_input_mouse->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_input_mouse);
+  }
+#endif
+  pl011_create(v_fdt, 0x10004000);
+
+  int chosen = fdt_path_offset(v_fdt, "/chosen");
+  if (chosen < 0) {
+    puts("ERROR: no chosen node in fdt");
+    exit(-1);
+  } else {
+    if (kernel_command_line) {
+      fdt_setprop_string(v_fdt, chosen, "bootargs", kernel_command_line);
+    }
+    if (initrd_len > 0) {
+      uint32_t start = initrd_addr;
+      uint32_t end = start + initrd_len;
+      fdt_setprop_u32(v_fdt, chosen, "linux,initrd-start", start);
+      fdt_setprop_u32(v_fdt, chosen, "linux,initrd-end", end);
+    }
+  }
+  int memory = fdt_path_offset(v_fdt, "/memory@80000000");
+  if (memory > 0) {
+    fdt_setprop(v_fdt, memory, "reg", NULL, 0);
+    uint32_t ram_start = MINIRV32_RAM_IMAGE_OFFSET;
+    uint32_t ram_size = next_guest_top_alloc - MINIRV32_RAM_IMAGE_OFFSET;
+    printf("setting ram to 0x%08x + 0x%08x\n", ram_start, ram_size);
+    fdt_appendprop_addrrange(v_fdt, 0, memory, "reg", ram_start, ram_size);
+  }
+}
+
 int main( int argc, char ** argv ) {
   int i;
-  int image_size = 0;
   long long instct = -1;
   int show_help = 0;
   int time_divisor = 1;
   int fixed_update = 0;
   int do_sleep = 1;
   int single_step = 0;
-  int dtb_ptr = 0;
+  uint32_t dtb_ptr = 0;
   const char * image_file_name = 0;
   const char *initrd_name = NULL;
   const char * dtb_file_name = 0;
   const bool enable_gfx = true;
   const bool enable_virtio_blk = false;
-#ifdef WITH_INPUT
   const bool enable_virtio_input = true;
-#endif
-  bool have_plic = true;
   const char * kernel_command_line = "earlycon=uart8250,mmio,0x10000000,1000000 console=tty1 console=ttyAMA0 no_hash_pointers";
   void *fb_virt_ptr = NULL;
 
@@ -164,204 +337,43 @@ int main( int argc, char ** argv ) {
     fprintf( stderr, "Error: could not allocate system image.\n" );
     return -4;
   }
-  // The core lives at the end of RAM.
-  core = (struct MiniRV32IMAState *)(ram_image + ram_amt - sizeof( struct MiniRV32IMAState ));
-  printf("MEM: 0x%08lx -> 0x%08x == CORE\n", 0x80000000 + ram_amt - sizeof(struct MiniRV32IMAState), (0x80000000 + ram_amt)-1);
-  ram_amt -= sizeof(struct MiniRV32IMAState);
-  uint32_t ram_size_backup = ram_amt;
-  uint32_t advertised_ram_top = ram_amt - (64*1024);
 
 restart:
-  ram_amt = ram_size_backup;
-	{
-		FILE * f = fopen( image_file_name, "rb" );
-		if( !f || ferror( f ) )
-		{
-			fprintf( stderr, "Error: \"%s\" not found\n", image_file_name );
-			return -5;
-		}
-		fseek( f, 0, SEEK_END );
-		long flen = ftell( f );
-		fseek( f, 0, SEEK_SET );
-		if( flen > ram_amt )
-		{
-			fprintf( stderr, "Error: Could not fit RAM image (%ld bytes) into %d\n", flen, ram_amt );
-			return -6;
-		}
+  next_guest_alloc = MINIRV32_RAM_IMAGE_OFFSET;
+  next_guest_top_alloc = MINIRV32_RAM_IMAGE_OFFSET + ram_amt;
 
-		memset( ram_image, 0, ram_amt );
-		if( fread( ram_image, flen, 1, f ) != 1)
-		{
-			fprintf( stderr, "Error: Could not load image.\n" );
-			return -7;
-		}
-		fclose( f );
-                image_size = flen;
-                printf("MEM: 0x%08x -> 0x%08x == IMAGE\n", 0x80000000, 0x80000000 + image_size);
+  // The core lives at the end of RAM.
+  uint32_t core_guest_ptr = guest_top_alloc(sizeof(struct MiniRV32IMAState), "CORE");
+  core = cast_guest_ptr(ram_image, core_guest_ptr);
+  {
+    memset( ram_image, 0, ram_amt );
+    load_kernel(image_file_name);
 
-		if( dtb_file_name )
-		{
-			if( strcmp( dtb_file_name, "disable" ) == 0 )
-			{
-				// No DTB reading.
-			}
-			else
-			{
-				f = fopen( dtb_file_name, "rb" );
-				if( !f || ferror( f ) )
-				{
-					fprintf( stderr, "Error: \"%s\" not found\n", dtb_file_name );
-					return -5;
-				}
-				fseek( f, 0, SEEK_END );
-				long dtblen = ftell( f );
-				fseek( f, 0, SEEK_SET );
-				dtb_ptr = ram_amt - dtblen - sizeof( struct MiniRV32IMAState );
-                                printf("MEM: 0x%08x -> 0x%08x == INITRD\n", (uint32_t)(0x80000000 + dtb_ptr), (uint32_t)(0x80000000 + dtb_ptr + dtblen - 1));
-				if( fread( ram_image + dtb_ptr, dtblen, 1, f ) != 1 )
-				{
-					fprintf( stderr, "Error: Could not open dtb \"%s\"\n", dtb_file_name );
-					return -9;
-				}
-				fclose( f );
-			}
-		}
-		else
-		{
-                        uint32_t initrd_addr = 0;
-                        uint32_t initrd_len = 0;
-                        if (initrd_name) {
-                          initrd_addr = image_size + (1024*1024);
-                          initrd_addr += 0x1000 - (initrd_addr & 0xfff);
-                          printf("loading %s to 0x%x\n", initrd_name, initrd_addr);
-                          FILE *fh = fopen(initrd_name, "rb");
-                          if( !fh || ferror( fh ) ) {
-                            fprintf( stderr, "Error: \"%s\" not found\n", initrd_name);
-                            return -1;
-                          }
-                          fseek( fh, 0, SEEK_END );
-                          initrd_len = ftell(fh);
-                          fseek(fh, 0, SEEK_SET);
-                          if ((initrd_addr + initrd_len) > ram_amt) {
-                            fprintf( stderr, "Error: Could not fit initrd image (%d bytes) into %d\n", initrd_len, ram_amt);
-                            return -1;
-                          }
-                          printf("MEM: 0x%08x -> 0x%08x == INITRD\n", 0x80000000 + initrd_addr, 0x80000000 + initrd_addr + initrd_len - 1);
-                          if (fread(ram_image + initrd_addr, initrd_len, 1, fh) != 1) {
-                            fprintf( stderr, "Error: Could not load initrd.\n" );
-                            return -1;
-                          }
-                          fclose(fh);
-                        }
-			// Load a default dtb.
-			dtb_ptr = initrd_addr + initrd_len + (64*1024);
-			memcpy(ram_image + dtb_ptr, default64mbdtb, sizeof( default64mbdtb ) );
-                        printf("MEM: 0x%08x -> 0x%08x == DTB\n", 0x80000000 + dtb_ptr, (uint32_t)(0x80000000 + dtb_ptr + sizeof(default64mbdtb) - 1));
-                        void *v_fdt = ram_image + dtb_ptr;
-			int ret = fdt_open_into(v_fdt, v_fdt, 32*1024);
-                        if (ret) {
-                          printf("ERROR: fdt_open_into() == %d\n", ret);
-                          return -1;
-                        }
-                        if (enable_gfx) {
-                          const int w = 640;
-                          const int h = 480;
-                          const int bpp = 4;
-                          const int bytes_per_frame = w * h * bpp;
-                          const int size_rounded_up = ROUNDUP(bytes_per_frame,4096);
+    if( dtb_file_name && (strcmp( dtb_file_name, "disable" ) == 0) ) {
+      // No DTB reading.
+      if (initrd_name) {
+        fprintf(stderr, "unable to load initrd without a dtb\n");
+        return -1;
+      }
+    } else {
+      uint32_t initrd_addr = 0;
+      uint32_t initrd_len = 0;
+      if (initrd_name) {
+        load_initrd(initrd_name, &initrd_addr, &initrd_len);
+      }
+      load_dtb(dtb_file_name, &dtb_ptr);
+      patch_dtb(dtb_ptr, enable_gfx, &fb_virt_ptr, enable_virtio_blk, enable_virtio_input, kernel_command_line, initrd_addr, initrd_len);
+    }
 
-                          advertised_ram_top -= size_rounded_up;
-                          advertised_ram_top &= ~0xfff;
-                          advertised_ram_top -= (1024*1024*4);
+  }
 
-                          // TODO, adjust the top of ram in /memory below
-                          int system = fdt_add_subnode(v_fdt, 0, "system");
-                          fdt_setprop_string(v_fdt, system, "compatible", "simple-bus");
-                          fdt_setprop_u32(v_fdt, system, "#address-cells", 1);
-                          fdt_setprop_u32(v_fdt, system, "#size-cells", 1);
-                          fdt_setprop(v_fdt, system, "ranges", NULL, 0);
-                          printf("MEM: 0x%08x -> 0x%08x == FB\n", 0x80000000 + advertised_ram_top, 0x80000000 + advertised_ram_top + bytes_per_frame - 1);
-
-                          // FB_SIMPLE=y in linux
-                          int fb = fdt_add_subnode(v_fdt, system, "framebuffer");
-                          fdt_setprop_string(v_fdt, fb, "compatible", "simple-framebuffer");
-                          fdt_appendprop_addrrange(v_fdt, system, fb, "reg", 0x80000000 + advertised_ram_top, bytes_per_frame);
-                          fdt_setprop_u32(v_fdt, fb, "width", w);
-                          fdt_setprop_u32(v_fdt, fb, "height", h);
-                          fdt_setprop_u32(v_fdt, fb, "stride", w*bpp);
-                          fdt_setprop_string(v_fdt, fb, "format", "a8r8g8b8");
-                          fb_virt_ptr = ram_image + advertised_ram_top;
-                        }
-                        if (have_plic) {
-                          int soc = fdt_path_offset(v_fdt, "/soc");
-                          int plic = fdt_add_subnode(v_fdt, soc, "plic");
-                          fdt_setprop_string(v_fdt, plic, "status", "okay");
-                          mmio_add_handler(0x10400000, 0x4000000, plic_load, plic_store, NULL);
-                        }
-                        if (enable_virtio_blk) {
-                          uint32_t base = get_next_base(0x1000);
-                          struct virtio_device *virtio_blk = virtio_blk_create(ram_image, base);
-                          virtio_add_dtb(virtio_blk, v_fdt);
-                          mmio_add_handler(virtio_blk->reg_base, virtio_blk->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_blk);
-                        }
-#ifdef WITH_INPUT
-                        if (enable_virtio_input) {
-                          uint32_t base = get_next_base(0x1000);
-                          struct virtio_device *virtio_input_keyb = virtio_input_create(ram_image, base, false);
-                          virtio_add_dtb(virtio_input_keyb, v_fdt);
-                          mmio_add_handler(virtio_input_keyb->reg_base, virtio_input_keyb->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_input_keyb);
-
-                          base = get_next_base(0x1000);
-                          struct virtio_device *virtio_input_mouse = virtio_input_create(ram_image, base, true);
-                          virtio_add_dtb(virtio_input_mouse, v_fdt);
-                          mmio_add_handler(virtio_input_mouse->reg_base, virtio_input_mouse->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_input_mouse);
-                        }
-#endif
-                        if (true) {
-                          pl011_create(v_fdt, 0x10004000);
-                        }
-                        int chosen = fdt_path_offset(v_fdt, "/chosen");
-                        if (chosen < 0) {
-                          puts("ERROR: no chosen node in fdt");
-                          return -1;
-                        } else {
-                          if (kernel_command_line) {
-                            fdt_setprop_string(v_fdt, chosen, "bootargs", kernel_command_line);
-                          }
-                          if (initrd_len > 0) {
-                            uint32_t start = 0x80000000 + initrd_addr;
-                            uint32_t end = start + initrd_len;
-                            fdt_setprop_u32(v_fdt, chosen, "linux,initrd-start", start);
-                            fdt_setprop_u32(v_fdt, chosen, "linux,initrd-end", end);
-                          }
-                        }
-                        int memory = fdt_path_offset(v_fdt, "/memory@80000000");
-                        if (memory > 0) {
-                          fdt_setprop(v_fdt, memory, "reg", NULL, 0);
-                          fdt_appendprop_addrrange(v_fdt, 0, memory, "reg", 0x80000000, advertised_ram_top);
-                        }
-		}
-	}
-
-        mmio_add_handler(0x10000000, 0x100, uart_load, uart_store, NULL);
+  mmio_add_handler(0x10000000, 0x100, uart_load, uart_store, NULL);
 	CaptureKeyboardInput();
 
 	core->pc = MINIRV32_RAM_IMAGE_OFFSET;
 	core->regs[10] = 0x00; //hart ID
-	core->regs[11] = dtb_ptr?(dtb_ptr+MINIRV32_RAM_IMAGE_OFFSET):0; //dtb_pa (Must be valid pointer) (Should be pointer to dtb)
+	core->regs[11] = dtb_ptr?(dtb_ptr):0; //dtb_pa (Must be valid pointer) (Should be pointer to dtb)
 	core->extraflags |= 3; // Machine-mode.
-
-	if( dtb_file_name == 0 )
-	{
-		// Update system ram size in DTB (but if and only if we're using the default DTB)
-		// Warning - this will need to be updated if the skeleton DTB is ever modified.
-		uint32_t * dtb = (uint32_t*)(ram_image + dtb_ptr);
-		if( dtb[0x13c/4] == 0x00c0ff03 )
-		{
-			uint32_t validram = dtb_ptr;
-			dtb[0x13c/4] = (validram>>24) | ((( validram >> 16 ) & 0xff) << 8 ) | (((validram>>8) & 0xff ) << 16 ) | ( ( validram & 0xff) << 24 );
-		}
-	}
 
 	// Image is loaded.
 	uint64_t rt;

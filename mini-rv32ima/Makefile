@@ -56,7 +56,7 @@ virtio-input.o: virtio-input.c virtio.h x11-key-lut.h plic.h
 virtio-blk.o: virtio-blk.c virtio.h
 virtio.o: virtio.c virtio.h plic.h
 plic.o: plic.c plic.h
-full-rv32ima.o: full-rv32ima.c default64mbdtc.h rawdraw_sf.h virtio.h plic.h mmio.h pl011.h stdio.h
+full-rv32ima.o: full-rv32ima.c default64mbdtc.h rawdraw_sf.h virtio.h plic.h mmio.h pl011.h stdio.h mini-rv32ima.h
 pl011.o: pl011.c pl011.h plic.h mmio.h stdio.h
 stdio.o: stdio.c stdio.h
 

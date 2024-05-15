@@ -552,8 +552,7 @@ MINIRV32_STEPPROTO
 	}
 
 	// Handle traps and interrupts.
-	if( trap )
-	{
+	if( trap ) {
 		if( trap & 0x80000000 ) // If prefixed with 1 in MSB, it's an interrupt, not a trap.
 		{
 			SETCSR( mcause, trap );
