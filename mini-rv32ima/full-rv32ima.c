@@ -226,12 +226,14 @@ void patch_dtb(uint32_t dtb_ptr, bool enable_gfx, void **fb_virt_ptr, bool enabl
     fdt_setprop_string(v_fdt, plic, "status", "okay");
     mmio_add_handler(0x10400000, 0x4000000, plic_load, plic_store, NULL);
   }
+#ifdef WITH_BLOCK
   if (enable_virtio_blk) {
     uint32_t base = get_next_base(0x1000);
     struct virtio_device *virtio_blk = virtio_blk_create(ram_image, base);
     virtio_add_dtb(virtio_blk, v_fdt);
     mmio_add_handler(virtio_blk->reg_base, virtio_blk->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_blk);
   }
+#endif
 #ifdef WITH_INPUT
   if (enable_virtio_input) {
     uint32_t base = get_next_base(0x1000);
