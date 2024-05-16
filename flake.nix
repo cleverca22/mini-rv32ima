@@ -9,6 +9,7 @@
       lib = self.lib;
     in {
       mini-rv32ima = self.callPackage ./mini-rv32ima {};
+      cnfa = self.callPackage ./cnfa.nix {};
       dtc = super.dtc.overrideAttrs (old: {
         patches = [ ./dtc-static.patch ];
         doCheck = false;
@@ -57,7 +58,7 @@
       '';
   in {
     packages = rec {
-      inherit (pkgs) mini-rv32ima;
+      inherit (pkgs) mini-rv32ima cnfa;
       static-rv32ima = pkgs.pkgsStatic.mini-rv32ima;
       windows-rv32ima = pkgs.pkgsCross.mingwW64.mini-rv32ima;
       default = mkDoTest false [];
@@ -123,6 +124,7 @@
       base = mkImage [ ];
       static-rv32ima = self.packages.${system}.static-rv32ima;
       windows-rv32ima = self.packages.${system}.windows-rv32ima;
+      cnfa = self.packages.${system}.cnfa;
     };
   })) // {
     nixConfig = {
