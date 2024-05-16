@@ -3,7 +3,7 @@
 #include "mmio.h"
 
 struct mmio_range *root;
-static uint32_t next_base = 0x10001000;
+static uint32_t next_base = 0x10000000;
 #define ROUNDUP(a, b) (((a) + ((b)-1)) & ~((b)-1))
 
 bool debug_blacklist(uint32_t addr) {
@@ -45,5 +45,6 @@ uint32_t get_next_base(uint32_t size) {
   size = ROUNDUP(size, 0x1000);
   uint32_t ret = next_base;
   next_base += size;
+  printf("MMIO: 0x%08x + 0x%08x allocated\n", ret, size);
   return ret;
 }

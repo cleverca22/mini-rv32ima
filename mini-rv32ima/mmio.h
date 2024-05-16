@@ -18,7 +18,7 @@ void mmio_routed_store(uint32_t addr, uint32_t val);
 
 extern struct mmio_range *root;
 
-static inline struct mmio_range *mmio_add_handler(uint32_t addr, uint32_t size, uint32_t (*mmio_load)(void*, uint32_t), void (*mmio_store)(void*, uint32_t, uint32_t), void *state) {
+static inline struct mmio_range *mmio_add_handler(uint32_t addr, uint32_t size, uint32_t (*mmio_load)(void*, uint32_t), void (*mmio_store)(void*, uint32_t, uint32_t), void *state, const char *name) {
   struct mmio_range *rng = malloc(sizeof(struct mmio_range));
   rng->addr = addr;
   rng->size = size;
@@ -28,6 +28,8 @@ static inline struct mmio_range *mmio_add_handler(uint32_t addr, uint32_t size, 
   rng->next = root;
 
   root = rng;
+
+  printf("MMIO 0x%08x + 0x%08x == %s\n", addr, size, name);
   return rng;
 }
 

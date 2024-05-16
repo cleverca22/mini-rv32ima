@@ -48,54 +48,54 @@
 		};
 	};
 
-	soc {
-                interrupt-parent = <&intc>;
-		#address-cells = <0x01>;
-		#size-cells = <0x01>;
-		compatible = "simple-bus";
-		ranges;
+  soc {
+    interrupt-parent = <&intc>;
+    #address-cells = <0x01>;
+    #size-cells = <0x01>;
+    compatible = "simple-bus";
+    ranges;
 
-		uart@10000000 {
-			clock-frequency = <0x1000000>;
-			reg = <0x10000000 0x100>;
-			compatible = "ns16850";
-                        status = "disabled";
-		};
+    pl011@10000000 {
+      reg = <0x10000000 0x100>;
+      compatible = "arm,pl011", "arm,sbsa-uart";
+      reg-io-width = <4>;
+      current-speed = <115200>;
+    };
 
-		poweroff {
-			value = <0x5555>;
-			offset = <0x00>;
-			regmap = <0x04>;
-			compatible = "syscon-poweroff";
-		};
+    poweroff {
+            value = <0x5555>;
+            offset = <0x00>;
+            regmap = <0x04>;
+            compatible = "syscon-poweroff";
+    };
 
-		reboot {
-			value = <0x7777>;
-			offset = <0x00>;
-			regmap = <0x04>;
-			compatible = "syscon-reboot";
-		};
+    reboot {
+            value = <0x7777>;
+            offset = <0x00>;
+            regmap = <0x04>;
+            compatible = "syscon-reboot";
+    };
 
-		syscon@11100000 {
-			phandle = <0x04>;
-			reg = <0x11100000 0x1000>;
-			compatible = "syscon";
-		};
+    syscon@11100000 {
+            phandle = <0x04>;
+            reg = <0x11100000 0x1000>;
+            compatible = "syscon";
+    };
 
-		clint@11000000 {
-                        interrupts-extended = <&hart0_intc 3>, <&hart0_intc 7>;
-			reg = <0x11000000 0x10000>;
-			compatible = "sifive,clint0", "riscv,clint0";
-		};
-                intc: plic@1c000000 {
-                  compatible = "sifive,plic-1.0.0";
-                  reg = <0x10400000 0x4000000>;
-                  #address-cells = <0>;
-                  #interrupt-cells = <1>;
-                  interrupt-controller;
-                  interrupts-extended = <&hart0_intc 11>;
-                  // status = "disabled";
-                  riscv,ndev = <32>;
-                };
-	};
+    clint@11000000 {
+            interrupts-extended = <&hart0_intc 3>, <&hart0_intc 7>;
+            reg = <0x11000000 0x10000>;
+            compatible = "sifive,clint0", "riscv,clint0";
+    };
+    intc: plic@1c000000 {
+      compatible = "sifive,plic-1.0.0";
+      reg = <0x10400000 0x4000000>;
+      #address-cells = <0>;
+      #interrupt-cells = <1>;
+      interrupt-controller;
+      interrupts-extended = <&hart0_intc 11>;
+      // status = "disabled";
+      riscv,ndev = <32>;
+    };
+  };
 };

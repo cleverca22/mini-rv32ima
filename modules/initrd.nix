@@ -79,7 +79,7 @@ let
   };
   myinitrd = pkgs.makeInitrd {
     prepend = [ console ];
-    compressor = "cat";
+    compressor = if config.kernel.gzip_initrd then "gzip -9n" else "cat";
     contents = [
       {
         object = "${myenv}/bin";

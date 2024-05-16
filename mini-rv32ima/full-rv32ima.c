@@ -219,19 +219,23 @@ void patch_dtb(uint32_t dtb_ptr, bool enable_gfx, void **fb_virt_ptr, bool enabl
     printf("ERROR: fdt_open_into() == %d\n", ret);
     exit(-1);
   }
+  {
+    uint32_t uart_base = get_next_base(0x100);
+    pl011_create(v_fdt, uart_base);
+  }
   if (enable_gfx) patch_dtb_gfx(v_fdt, fb_virt_ptr);
   {
     int soc = fdt_path_offset(v_fdt, "/soc");
     int plic = fdt_add_subnode(v_fdt, soc, "plic");
     fdt_setprop_string(v_fdt, plic, "status", "okay");
-    mmio_add_handler(0x10400000, 0x4000000, plic_load, plic_store, NULL);
+    mmio_add_handler(0x10400000, 0x4000000, plic_load, plic_store, NULL, "PLIC");
   }
 #ifdef WITH_BLOCK
   if (enable_virtio_blk) {
     uint32_t base = get_next_base(0x1000);
     struct virtio_device *virtio_blk = virtio_blk_create(ram_image, base);
     virtio_add_dtb(virtio_blk, v_fdt);
-    mmio_add_handler(virtio_blk->reg_base, virtio_blk->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_blk);
+    mmio_add_handler(virtio_blk->reg_base, virtio_blk->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_blk, "virtio-blk");
   }
 #endif
 #ifdef WITH_INPUT
@@ -239,15 +243,14 @@ void patch_dtb(uint32_t dtb_ptr, bool enable_gfx, void **fb_virt_ptr, bool enabl
     uint32_t base = get_next_base(0x1000);
     struct virtio_device *virtio_input_keyb = virtio_input_create(ram_image, base, false);
     virtio_add_dtb(virtio_input_keyb, v_fdt);
-    mmio_add_handler(virtio_input_keyb->reg_base, virtio_input_keyb->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_input_keyb);
+    mmio_add_handler(virtio_input_keyb->reg_base, virtio_input_keyb->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_input_keyb, "virtio-input keyboard");
 
     base = get_next_base(0x1000);
     struct virtio_device *virtio_input_mouse = virtio_input_create(ram_image, base, true);
     virtio_add_dtb(virtio_input_mouse, v_fdt);
-    mmio_add_handler(virtio_input_mouse->reg_base, virtio_input_mouse->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_input_mouse);
+    mmio_add_handler(virtio_input_mouse->reg_base, virtio_input_mouse->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_input_mouse, "virtio-input mouse");
   }
 #endif
-  pl011_create(v_fdt, 0x10004000);
 
   int chosen = fdt_path_offset(v_fdt, "/chosen");
   if (chosen < 0) {
@@ -289,7 +292,7 @@ int main( int argc, char ** argv ) {
   const bool enable_gfx = true;
   const bool enable_virtio_blk = false;
   const bool enable_virtio_input = true;
-  const char * kernel_command_line = "earlycon=uart8250,mmio,0x10000000,1000000 console=tty1 console=ttyAMA0 no_hash_pointers";
+  const char * kernel_command_line = "earlycon=pl011,0x10000000 console=tty1 console=ttyAMA0 no_hash_pointers";
   void *fb_virt_ptr = NULL;
 
   for( i = 1; i < argc; i++ ) {
@@ -369,7 +372,7 @@ restart:
 
   }
 
-  mmio_add_handler(0x10000000, 0x100, uart_load, uart_store, NULL);
+  //mmio_add_handler(0x10000000, 0x100, uart_load, uart_store, NULL, "legacy uart");
 	CaptureKeyboardInput();
 
 	core->pc = MINIRV32_RAM_IMAGE_OFFSET;

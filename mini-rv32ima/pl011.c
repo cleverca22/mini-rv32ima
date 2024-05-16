@@ -69,16 +69,13 @@ static void pl011_store(void *state, uint32_t addr, uint32_t val) {
 }
 
 void pl011_create(void *v_fdt, uint32_t reg_base) {
-  int soc = fdt_path_offset(v_fdt, "/soc");
-  char buffer[32];
-  snprintf(buffer, 32, "pl011@%x", reg_base);
-  int uart = fdt_add_subnode(v_fdt, soc, buffer);
-  fdt_appendprop_addrrange(v_fdt, soc, uart, "reg", reg_base, 0x100);
+  int uart = fdt_node_offset_by_compatible(v_fdt, 0, "arm,pl011");
+  int parent = fdt_parent_offset(v_fdt, uart);
+
   uart_irq = get_next_irq();
+
   fdt_setprop_u32(v_fdt, uart, "interrupts", uart_irq);
-  fdt_setprop_u32(v_fdt, uart, "reg-io-width", 4);
-  fdt_setprop_u32(v_fdt, uart, "current-speed", 115200);
-  fdt_setprop_string(v_fdt, uart, "compatible", "arm,pl011");
-  fdt_appendprop_string(v_fdt, uart, "compatible", "arm,sbsa-uart");
-  mmio_add_handler(reg_base, 0x100, pl011_load, pl011_store, NULL);
+  fdt_appendprop_addrrange(v_fdt, parent, uart, "reg", reg_base, 0x100);
+
+  mmio_add_handler(reg_base, 0x100, pl011_load, pl011_store, NULL, "PL011");
 }
