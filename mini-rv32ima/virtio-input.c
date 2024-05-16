@@ -292,7 +292,7 @@ void HandleButton( int x, int y, int button, int bDown ) {
   send_event(ctx, EV_SYN, 0, 0);
 }
 
-const virtio_device_type virtio_input_type = {
+static const virtio_device_type virtio_input_type = {
   .device_type = 18,
   .queue_count = 2,
   .config_load = virtio_input_config_load,

@@ -7,7 +7,7 @@ mini-rv32ima : mini-rv32ima.c mini-rv32ima.h default64mbdtc.h
 
 CFLAGS := -ffunction-sections -fdata-sections -Wall -Wstrict-prototypes -DCNFG_WINDOWS_DISABLE_BATCH
 LIBS := -lfdt
-SRCS := plic.c virtio.c full-rv32ima.c mmio.c pl011.c stdio.c
+SRCS := plic.c virtio.c full-rv32ima.c mmio.c pl011.c stdio.c virtio-snd.c
 ifeq ($(BLOCK),1)
   SRCS += virtio-blk.c
   CFLAGS += -DWITH_BLOCK
@@ -59,6 +59,7 @@ plic.o: plic.c plic.h
 full-rv32ima.o: full-rv32ima.c default64mbdtc.h rawdraw_sf.h virtio.h plic.h mmio.h pl011.h stdio.h mini-rv32ima.h
 pl011.o: pl011.c pl011.h plic.h mmio.h stdio.h
 stdio.o: stdio.c stdio.h
+virtio-snd.o: virtio-snd.c virtio.h plic.h
 
 amalgamation.c: $(SRCS)
 	cat $(SRCS) > $@

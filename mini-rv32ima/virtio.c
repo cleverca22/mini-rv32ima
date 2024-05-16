@@ -201,16 +201,16 @@ void virtio_mmio_store(void *state, uint32_t offset, uint32_t val) {
     break;
   case 0x30:
     dev->QueueSel = val;
-    printf("QueueSel = %d\n", val);
+    printf("virtio%d QueueSel = %d\n", dev->index, val);
     break;
   case 0x38:
     dev->queues[dev->QueueSel].QueueNum = val;
-    printf("QueueNum[%d.%d] = %d\n", dev->index, dev->QueueSel, val);
+    printf("virtio%d QueueNum[%d] = %d\n", dev->index, dev->QueueSel, val);
     break;
   case 0x44:
     dev->queues[dev->QueueSel].QueueReady = val;
     if (val == 1) {
-      printf("virtio%d_queue%d has become ready\n", dev->index, dev->QueueSel);
+      printf("virtio%d Queue[%d] has become ready\n", dev->index, dev->QueueSel);
     }
     break;
   case 0x50: // QueueNotify
@@ -285,6 +285,7 @@ uint32_t virtio_mmio_load(void *state, uint32_t offset) {
     }
     break;
   case 0x34: // QueueNumMax
+    // TODO, delegate this to the type
     switch (dev->QueueSel) {
     case 0:
       ret = 4096;
@@ -292,7 +293,14 @@ uint32_t virtio_mmio_load(void *state, uint32_t offset) {
     case 1:
       ret = 64;
       break;
+    case 2:
+      ret = 4096;
+      break;
+    case 3:
+      ret = 4096;
+      break;
     }
+    printf("virtio%d QueueNumMax[%d] = %d\n", dev->index, dev->QueueSel, ret);
     break;
   case 0x44:
     ret = dev->queues[dev->QueueSel].QueueReady;

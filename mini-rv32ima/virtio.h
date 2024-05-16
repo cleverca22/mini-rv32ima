@@ -109,7 +109,5 @@ void virtio_flag_completion(struct virtio_device *dev, int queue, uint16_t start
 void virtio_config_changed(struct virtio_device *dev);
 struct virtio_device *virtio_input_create(void *ram_image, uint32_t base, bool mouse);
 struct virtio_device *virtio_blk_create(void *ram_image, uint32_t base);
+struct virtio_device *virtio_snd_create(void *ram_image, uint32_t base);
 void virtio_add_dtb(struct virtio_device*, void *v_fdt);
-
-extern const virtio_device_type virtio_blk_type;
-extern const virtio_device_type virtio_input_type;

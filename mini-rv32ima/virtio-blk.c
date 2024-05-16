@@ -96,7 +96,7 @@ static void virtio_blk_process_command(struct virtio_device *dev, struct virtio_
   virtio_flag_completion(dev, queue, start_idx, written);
 }
 
-const virtio_device_type virtio_blk_type = {
+static const virtio_device_type virtio_blk_type = {
   .device_type = 2,
   .queue_count = 1,
   .config_load = virtio_blk_config_load,
