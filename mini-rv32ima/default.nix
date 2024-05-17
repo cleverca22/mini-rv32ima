@@ -1,4 +1,4 @@
-{ lib, stdenv, dtc, xorg, mesa, http ? false, buildPackages, linuxHeaders, cnfa }:
+{ lib, stdenv, dtc, xorg, mesa, http ? false, buildPackages, linuxHeaders, cnfa, alsa-lib }:
 
 stdenv.mkDerivation {
   src = ./.;
@@ -21,6 +21,6 @@ stdenv.mkDerivation {
   nativeBuildInputs = [ xorg.libX11 ];
   depsBuildBuild = [ buildPackages.stdenv.cc ];
   STATIC = stdenv.hostPlatform.isStatic;
-  buildInputs = [ dtc cnfa ] ++ lib.optional stdenv.hostPlatform.isLinux xorg.libX11
+  buildInputs = [ dtc cnfa alsa-lib ] ++ lib.optional stdenv.hostPlatform.isLinux xorg.libX11
     ++ lib.optional stdenv.hostPlatform.isWindows linuxHeaders;
 }

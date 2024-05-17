@@ -5,9 +5,11 @@ mini-rv32ima : mini-rv32ima.c mini-rv32ima.h default64mbdtc.h
 	${CC} -o $@ $< -g -O2 -Wall
 	${CC} -o $@-tiny $< -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -fwhole-program -s
 
+NM ?= nm
+
 CFLAGS := -ffunction-sections -fdata-sections -Wall -Wstrict-prototypes -DCNFG_WINDOWS_DISABLE_BATCH
 LIBS := -lfdt -lCNFA
-SRCS := plic.c virtio.c full-rv32ima.c mmio.c pl011.c stdio.c virtio-snd.c
+SRCS := plic.c virtio.c full-rv32ima.c mmio.c pl011.c stdio.c
 ifeq ($(BLOCK),1)
   SRCS += virtio-blk.c
   CFLAGS += -DWITH_BLOCK
@@ -32,6 +34,11 @@ ifeq ($(X11),1)
   ifeq ($(STATIC),1)
     LIBS += -lxcb -lXau -lXdmcp
   endif
+endif
+
+ifeq ($(SOUND),1)
+  CFLAGS += -DWITH_SND
+  SRCS += virtio-snd.c
 endif
 
 LFLAGS := $(LIBS) -Wl,--gc-sections
