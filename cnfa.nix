@@ -15,7 +15,7 @@ stdenv.mkDerivation {
     rev = "79515226faaf75b208266de664a430195809cdd6";
     hash = "sha256-L+MDz7x3lDDLdpMhMEqkQgqj7gItUUHz9LPT1xWrka4=";
   };
-  buildInputs = lib.optional stdenv.hostPlatform.isLinux [ alsa-lib ];
+  buildInputs = lib.optional stdenv.hostPlatform.isLinux [ alsa-lib.dev ];
   patches = [ ./cnfa.patch ];
   preConfigure = ''
     cp ${os_generic} os_generic.h
