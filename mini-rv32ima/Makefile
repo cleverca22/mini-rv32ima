@@ -18,7 +18,6 @@ ifeq ($(INPUT),1)
   SRCS += virtio-input.c
   CFLAGS += -DWITH_INPUT
 endif
-OBJ := $(addsuffix .o, $(basename $(SRCS)))
 
 ifeq ($(WINDOWS),1)
   LIBS += -lgdi32 -lwinmm
@@ -39,9 +38,11 @@ endif
 ifeq ($(SOUND),1)
   CFLAGS += -DWITH_SND
   SRCS += virtio-snd.c
+  LIBS += -lasound
 endif
 
 LFLAGS := $(LIBS) -Wl,--gc-sections
+OBJ := $(addsuffix .o, $(basename $(SRCS)))
 
 ifeq ($(D),1)
 CFLAGS += -g -Og -fno-inline-small-functions
