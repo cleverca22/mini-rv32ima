@@ -288,6 +288,7 @@ static const virtio_device_type virtio_snd_type = {
 };
 
 struct virtio_device *virtio_snd_create(void *ram_image, uint32_t base) {
+  CNFA_reg_drivers();
   audio_host = CNFAInit(NULL, "full-rv32ima", cnfa_audio_cb, 44100, 0, 1, 0, 1024, NULL, NULL, NULL);
 
   return virtio_create(ram_image, &virtio_snd_type, base, 0x200, get_next_irq());

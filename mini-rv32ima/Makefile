@@ -19,7 +19,7 @@ endif
 OBJ := $(addsuffix .o, $(basename $(SRCS)))
 
 ifeq ($(WINDOWS),1)
-  LIBS += -lgdi32
+  LIBS += -lgdi32 -lwinmm
 endif
 
 ifeq ($(LINUX),1)

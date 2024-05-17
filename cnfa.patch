@@ -1,15 +1,17 @@
 diff --git a/CNFA.h b/CNFA.h
-index 60e657a..6a8dd25 100644
+index 60e657a..1a83a98 100644
 --- a/CNFA.h
 +++ b/CNFA.h
-@@ -86,6 +86,12 @@ void RegCNFADriver( int priority, const char * name, CNFAInitFn * fn );
+@@ -86,6 +86,14 @@ void RegCNFADriver( int priority, const char * name, CNFAInitFn * fn );
  	void __attribute__((constructor)) REGISTER##cnfadriver() { RegCNFADriver( priority, name, function ); }
  #endif
  
 +void * InitALSADriver( CNFACBType cb, const char * your_name, int reqSPSPlay, int reqSPSRec, int reqChannelsPlay, int reqChannelsRec, int sugBufferSize, const char * outputSelect, const char * inputSelect, void * opaque);
 +
 +static void CNFA_reg_drivers(void) {
++#if CNFA_LINUX
 +  RegCNFADriver(10, "ALSA", InitALSADriver);
++#endif
 +}
 +
  #if defined(WINDOWS) || defined(__WINDOWS__) || defined(_WINDOWS) \
