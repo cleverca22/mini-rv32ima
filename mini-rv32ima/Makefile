@@ -6,7 +6,7 @@ mini-rv32ima : mini-rv32ima.c mini-rv32ima.h default64mbdtc.h
 	${CC} -o $@-tiny $< -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -fwhole-program -s
 
 CFLAGS := -ffunction-sections -fdata-sections -Wall -Wstrict-prototypes -DCNFG_WINDOWS_DISABLE_BATCH
-LIBS := -lfdt
+LIBS := -lfdt -lCNFA
 SRCS := plic.c virtio.c full-rv32ima.c mmio.c pl011.c stdio.c virtio-snd.c
 ifeq ($(BLOCK),1)
   SRCS += virtio-blk.c
@@ -19,7 +19,11 @@ endif
 OBJ := $(addsuffix .o, $(basename $(SRCS)))
 
 ifeq ($(WINDOWS),1)
-LIBS += -lgdi32
+  LIBS += -lgdi32
+endif
+
+ifeq ($(LINUX),1)
+  LIBS += -lasound
 endif
 
 ifeq ($(X11),1)

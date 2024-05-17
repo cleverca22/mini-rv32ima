@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <CNFA.h>
 
 #include "virtio.h"
 #include "plic.h"
@@ -164,6 +165,10 @@ static virtio_snd_config cfg = {
   .chmaps = 1,
 };
 
+static struct CNFADriver *audio_host = NULL;
+
+static bool guest_playing = false;
+
 static uint32_t virtio_snd_config_load(struct virtio_device *dev, uint32_t offset) {
   uint32_t ret = 0;
   if (offset < sizeof(cfg)) {
@@ -220,7 +225,7 @@ static void virtio_process_control(struct virtio_device *dev, struct virtio_desc
     for (int i=0; i<query->count; i++) {
       info[0].features = 0;
       info[0].formats = (1<<VIRTIO_SND_PCM_FMT_S16);
-      info[0].rates = (1<<VIRTIO_SND_PCM_RATE_48000);
+      info[0].rates = (1<<VIRTIO_SND_PCM_RATE_44100);
       info[0].direction = VIRTIO_SND_D_OUTPUT;
       info[0].channels_min = 1;
       info[0].channels_max = 1;
@@ -263,6 +268,17 @@ static void virtio_snd_process_command(struct virtio_device *dev, struct virtio_
   }
 }
 
+static void cnfa_audio_cb(struct CNFADriver *dev, short *out, short *in, int framesp, int framesr) {
+  if (framesp > 0) { // playback
+    if (guest_playing) {
+    } else {
+      memset(out, 0, framesp * 2);
+    }
+  } else {
+    printf("cnfa_audio_cb(%p, %p, %p, %d, %d)\n", dev, out, in, framesp, framesr);
+  }
+}
+
 static const virtio_device_type virtio_snd_type = {
   .device_type = 25,
   .queue_count = 4,
@@ -272,5 +288,7 @@ static const virtio_device_type virtio_snd_type = {
 };
 
 struct virtio_device *virtio_snd_create(void *ram_image, uint32_t base) {
+  audio_host = CNFAInit(NULL, "full-rv32ima", cnfa_audio_cb, 44100, 0, 1, 0, 1024, NULL, NULL, NULL);
+
   return virtio_create(ram_image, &virtio_snd_type, base, 0x200, get_next_irq());
 }

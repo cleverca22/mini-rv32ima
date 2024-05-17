@@ -233,10 +233,10 @@ void virtio_mmio_store(void *state, uint32_t offset, uint32_t val) {
         dev->queues[queue].read_ptr = 0;
       }
     } else {
-      if (val & 1) puts("VIRTIO_CONFIG_S_ACKNOWLEDGE");
-      if (val & 2) puts("VIRTIO_CONFIG_S_DRIVER (driver found for dev)");
-      if (val & 4) puts("VIRTIO_CONFIG_S_DRIVER_OK");
-      if (val & 8) puts("VIRTIO_CONFIG_S_FEATURES_OK");
+      //if (val & 1) puts("VIRTIO_CONFIG_S_ACKNOWLEDGE");
+      //if (val & 2) puts("VIRTIO_CONFIG_S_DRIVER (driver found for dev)");
+      //if (val & 4) puts("VIRTIO_CONFIG_S_DRIVER_OK");
+      //if (val & 8) puts("VIRTIO_CONFIG_S_FEATURES_OK");
     }
     break;
   case 0x80:

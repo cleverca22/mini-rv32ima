@@ -1,4 +1,4 @@
-{ stdenv, fetchFromGitHub, lib }:
+{ stdenv, fetchFromGitHub, lib, cnfa }:
 
 stdenv.mkDerivation {
   name = "fbdoom";
@@ -21,6 +21,7 @@ stdenv.mkDerivation {
     sed -i 's/input_tty/input_evdev/' Makefile
     cp -v ${./fbdoom-overlay}/* .
   '';
+  buildInputs = [ cnfa ];
   enableParallelBuilding = true;
   installPhase = ''
     ls -ltrh
