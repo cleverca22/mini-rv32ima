@@ -13,6 +13,7 @@
 
 typedef struct {
   struct input_queue *virtio_input_queue_head;
+  int virtio_queue_size;
 } virtio_input_instance;
 
 static struct virtio_device *keyb, *mouse;
@@ -20,12 +21,12 @@ static struct virtio_device *keyb, *mouse;
 struct input_queue {
   uint8_t *dest;
   struct virtio_device *dev;
+  struct virtio_desc_internal *chain;
   int queue;
   uint16_t start_idx;
   struct input_queue *next;
 };
 
-static int virtio_queue_size = 0;
 static bool relative_mode = false;
 static int width = 640;
 static int height = 480;
@@ -150,23 +151,26 @@ static void virtio_input_process_command(struct virtio_device *dev, struct virti
   struct input_queue *node = malloc(sizeof(struct input_queue));
   node->dest = chain[0].message;
   node->dev = dev;
+  node->chain = chain;
   node->queue = queue;
   node->start_idx = start_idx;
   node->next = NULL;
 
   if (ctx->virtio_input_queue_head) {
     struct input_queue *tail = ctx->virtio_input_queue_head;
-    //printf("initial tail -> %p", tail);
+    //printf("initial tail %d -> %p", ctx->virtio_queue_size, tail);
+    int l = 0;
     while (tail->next) {
       tail = tail->next;
+      l++;
       //printf(" -> %p", tail);
     }
-    //printf(" -> end\n");
+    //printf(" -> end %d\n", l);
     tail->next = node;
   } else {
     ctx->virtio_input_queue_head = node;
   }
-  virtio_queue_size++;
+  ctx->virtio_queue_size++;
 }
 
 void send_event(virtio_input_instance *ctx, uint16_t type, uint16_t code, uint32_t value) {
@@ -195,10 +199,11 @@ void send_event(virtio_input_instance *ctx, uint16_t type, uint16_t code, uint32
   evt->type = type;
   evt->code = code;
   evt->value = value;
-  virtio_flag_completion(node->dev, node->queue, node->start_idx, 8);
+  virtio_flag_completion(node->dev, node->chain, node->queue, node->start_idx, 8);
   ctx->virtio_input_queue_head = node->next;
+  memset(node, 0xaa, sizeof(*node));
   free(node);
-  virtio_queue_size--;
+  ctx->virtio_queue_size--;
 }
 
 #ifndef CNFGHTTP

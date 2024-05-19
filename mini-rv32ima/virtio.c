@@ -105,7 +105,7 @@ void virtio_process_rings(struct virtio_device *dev) {
     virtio_desc *table = cast_guest_ptr(dev->ram_image, dev->queues[queue].QueueDescLow);
     virtio_available_ring *ring = cast_guest_ptr(dev->ram_image, dev->queues[queue].QueueDriverLow);
     //printf(RED"read ptr %d\n"DEFAULT, dev->queues[queue].read_ptr);
-    for (int n=dev->queues[queue].read_ptr; ; n++) {
+    for (uint16_t n=dev->queues[queue].read_ptr; ; n++) {
       if (n == ring->idx) {
         dev->queues[queue].read_ptr = n;
         //puts("hit write ptr");
@@ -124,7 +124,6 @@ again:
         goto again;
       }
       //printf("total length: %d\n", descriptor_chain_length);
-      // TODO, this chain gets leaked
       struct virtio_desc_internal *chain = malloc(sizeof(struct virtio_desc_internal) * descriptor_chain_length);
 
       int slot = 0;
@@ -148,7 +147,7 @@ again2:
   //printf(RED"%d total IO in this kick\n"DEFAULT, total_chains);
 }
 
-void virtio_flag_completion(struct virtio_device *dev, int queue, uint16_t start_idx, uint32_t written) {
+void virtio_flag_completion(struct virtio_device *dev, struct virtio_desc_internal *chain, int queue, uint16_t start_idx, uint32_t written) {
   struct virtio_used_ring *ring = cast_guest_ptr(dev->ram_image, dev->queues[queue].QueueDeviceLow);
   int index = dev->queues[queue].write_ptr % dev->queues[queue].QueueNum;
 
@@ -159,6 +158,7 @@ void virtio_flag_completion(struct virtio_device *dev, int queue, uint16_t start
   ring->idx = dev->queues[queue].write_ptr;
   dev->InterruptStatus |= 1;
   plic_raise_irq(dev->irq);
+  free(chain);
   //hexdump_ram(dev->ram_image, dev->queues[queue].QueueDeviceLow, 32);
   //printf(RED"command at idx %d completed into %d(%d), %d written\n"DEFAULT, start_idx, dev->queues[queue].write_ptr - 1, index, written);
 }

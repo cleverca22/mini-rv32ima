@@ -93,7 +93,7 @@ static void virtio_blk_process_command(struct virtio_device *dev, struct virtio_
     written = 1;
     break;
   }
-  virtio_flag_completion(dev, queue, start_idx, written);
+  virtio_flag_completion(dev, chain, queue, start_idx, written);
 }
 
 static const virtio_device_type virtio_blk_type = {
