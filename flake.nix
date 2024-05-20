@@ -119,12 +119,24 @@
           #cat ../mini-rv32ima/initrd | cpio -i
         '';
       in output;
+      doTest = pkgs.runCommand "test" {
+        image = mkImage [
+          {
+            initrd.inittab = "ttyAMA0::respawn:poweroff";
+          }
+        ];
+      } ''
+        mkdir $out
+        ls $image/mini-rv32ima
+        $image/mini-rv32ima/full-rv32ima.http -f $image/mini-rv32ima/Image -i $image/mini-rv32ima/initrd
+      '';
     in {
       fbdoom = mkImage [ ./configuration-fbdoom.nix ];
       base = mkImage [ ];
       static-rv32ima = self.packages.${system}.static-rv32ima;
       windows-rv32ima = self.packages.${system}.windows-rv32ima;
       cnfa = self.packages.${system}.cnfa;
+      tests.simple = doTest;
     };
   })) // {
     nixConfig = {
