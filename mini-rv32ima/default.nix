@@ -21,6 +21,7 @@ stdenv.mkDerivation {
   nativeBuildInputs = [ xorg.libX11 ];
   depsBuildBuild = [ buildPackages.stdenv.cc ];
   STATIC = stdenv.hostPlatform.isStatic;
-  buildInputs = [ dtc alsa-lib ] ++ lib.optional stdenv.hostPlatform.isLinux xorg.libX11
+  buildInputs = [ dtc ]
+    ++ lib.optionals stdenv.hostPlatform.isLinux [ xorg.libX11 alsa-lib ]
     ++ lib.optional stdenv.hostPlatform.isWindows linuxHeaders;
 }
