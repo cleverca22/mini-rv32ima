@@ -19,25 +19,23 @@ index 2dfc431..a952b7a 100644
  #define KEY_TAB			9
  #define KEY_F1			(0x80+0x3b)
  #define KEY_F2			(0x80+0x3c)
-diff --git a/fbdoom/i_timer.c b/fbdoom/i_timer.c
-index 081b38e..07521c3 100644
---- a/i_timer.c
-+++ b/i_timer.c
-@@ -22,6 +22,7 @@
- #include <stdarg.h>
- #include <sys/time.h>
- #include <unistd.h>
-+#include <time.h>
+diff --git a/i_sound.c b/fbdoom/i_sound.c
+index 71947d2..f036e82 100644
+--- a/i_sound.c
++++ b/i_sound.c
+@@ -65,6 +65,7 @@ int snd_sfxdevice = SNDDEVICE_SB;
+ extern void I_InitTimidityConfig(void);
+ extern sound_module_t sound_sdl_module;
+ extern sound_module_t sound_pcsound_module;
++extern sound_module_t sound_alsa_module;
+ extern music_module_t music_sdl_module;
+ extern music_module_t music_opl_module;
  
- //
- // I_GetTime
-@@ -75,7 +76,8 @@ int I_GetTimeMS(void)
- void I_Sleep(int ms)
- {
-     //SDL_Delay(ms);
--    usleep (ms * 1000);    
-+    struct timespec t = { .tv_sec = 0, .tv_nsec = ms * 1000 * 1000, };
-+    nanosleep(&t, NULL);
- }
+@@ -95,6 +96,7 @@ static sound_module_t *sound_modules[] =
+     &sound_sdl_module,
+     &sound_pcsound_module,
+ #endif
++    &sound_alsa_module,
+     NULL,
+ };
  
- void I_WaitVBL(int count)

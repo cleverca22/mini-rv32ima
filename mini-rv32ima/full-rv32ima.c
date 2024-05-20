@@ -449,6 +449,7 @@ restart:
         // virtio_dump_all();
 
 	DumpState( core, ram_image);
+  free(ram_image);
 
         return 0;
 }

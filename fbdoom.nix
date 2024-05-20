@@ -18,7 +18,7 @@ stdenv.mkDerivation {
     export NOSDL=1
   '';
   postPatch = ''
-    sed -i 's/input_tty/input_evdev/' Makefile
+    sed -i 's/input_tty.o/input_evdev.o i_alsa_sound.o/' Makefile
     cp -v ${./fbdoom-overlay}/* .
   '';
   buildInputs = [ cnfa ];
