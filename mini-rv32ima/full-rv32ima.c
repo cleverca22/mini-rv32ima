@@ -451,7 +451,9 @@ restart:
 	DumpState( core, ram_image);
   free(ram_image);
 
-        return 0;
+  if (want_exit) return 1;
+
+  return 0;
 }
 
 
