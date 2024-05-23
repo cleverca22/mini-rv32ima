@@ -191,7 +191,6 @@ static void callback(uint8_t *packet, uint32_t size) {
 
 struct virtio_device *virtio_net_create(void *ram_image, uint32_t base) {
   if (network_init(&callback)) {
-    exit(1);
     return NULL;
   }
   return virtio_create(ram_image, &virtio_net_type, base, 0x200, get_next_irq());
