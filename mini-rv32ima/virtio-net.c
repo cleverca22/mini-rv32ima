@@ -94,6 +94,7 @@ static void virtio_process_rx(struct virtio_device *dev, struct virtio_desc_inte
   node->next = NULL;
 
   pthread_mutex_lock(&queue_mutex);
+  // TODO, finding the tail is cpu intensive
   if (queue_head) {
     struct rx_queue *tail = queue_head;
 
