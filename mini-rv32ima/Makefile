@@ -9,7 +9,7 @@ NM ?= nm
 
 CFLAGS := -ffunction-sections -fdata-sections -Wall -Wstrict-prototypes -DCNFG_WINDOWS_DISABLE_BATCH
 LIBS := -lfdt
-SRCS := plic.c virtio.c full-rv32ima.c mmio.c pl011.c stdio.c
+SRCS := plic.c virtio.c full-rv32ima.c mmio.c pl011.c stdio.c virtio-net.c
 ifeq ($(BLOCK),1)
   SRCS += virtio-blk.c
   CFLAGS += -DWITH_BLOCK
@@ -25,6 +25,7 @@ endif
 
 ifeq ($(LINUX),1)
   LIBS += -lasound
+  SRCS += network_tap.c
 endif
 
 ifeq ($(X11),1)
@@ -72,6 +73,7 @@ full-rv32ima.o: full-rv32ima.c default64mbdtc.h rawdraw_sf.h virtio.h plic.h mmi
 pl011.o: pl011.c pl011.h plic.h mmio.h stdio.h
 stdio.o: stdio.c stdio.h
 virtio-snd.o: virtio-snd.c virtio.h plic.h
+virtio-net.o: virtio-net.c virtio.h plic.h network.h
 
 amalgamation.c: $(SRCS)
 	cat $(SRCS) > $@

@@ -21,4 +21,14 @@
       ];
     });
   }) ];
+  #initrd.inittab = "ttyAMA0::respawn:poweroff";
+  kernel = {
+    gfx = true;
+    fb_console = true;
+  };
+  initrd.postInit = ''
+    ip link set eth0 up
+    ip addr add 10.0.0.100/24 dev eth0
+    ip route add via 10.0.0.1 dev eth0
+  '';
 }

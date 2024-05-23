@@ -10,9 +10,6 @@
 static struct virtio_device *virtio_devices[64];
 static int virtio_count = 0;
 
-
-// i think virtio_mmio in linux, automatically jams the entire queue full with requests for virtio_input_event objects
-// so it has guest ram assigned for every event it can receive at once
 struct virtio_device *virtio_create(void *ram_image, const virtio_device_type *type, uint32_t base, uint32_t size, int irq) {
   int queues = type->queue_count;
   struct virtio_device *dev = malloc(sizeof(struct virtio_device));
@@ -35,7 +32,7 @@ struct virtio_device *virtio_create(void *ram_image, const virtio_device_type *t
   return dev;
 }
 
-static void hexdump_ram(void *ram_image, uint32_t addr, uint32_t len) {
+void hexdump_ram(void *ram_image, uint32_t addr, uint32_t len) {
   for (int i=0; i<len; i++) {
     uint32_t addy = addr + i;
     if ((i % 16) == 0) printf("0x%x: ", addy);
@@ -56,7 +53,7 @@ static void virtio_dump_desc(struct virtio_device *dev, const virtio_desc *desc)
   if (desc->flags & 4) puts("\t\tVIRTQ_DESC_F_INDIRECT");
   printf("\tnext: %d\n", desc->next);
   if (desc->len != 4096) {
-    hexdump_ram(dev->ram_image, desc->addr, desc->len);
+    //hexdump_ram(dev->ram_image, desc->addr, desc->len);
   } else puts("buffer omitted");
 }
 
@@ -148,6 +145,7 @@ again2:
 
 void virtio_flag_completion(struct virtio_device *dev, struct virtio_desc_internal *chain, int queue, uint16_t start_idx, uint32_t written) {
   struct virtio_used_ring *ring = cast_guest_ptr(dev->ram_image, dev->queues[queue].QueueDeviceLow);
+  // TODO, protect with a mutex
   int index = dev->queues[queue].write_ptr % dev->queues[queue].QueueNum;
 
   ring->ring[index].id = start_idx;
@@ -226,7 +224,7 @@ void virtio_mmio_store(void *state, uint32_t offset, uint32_t val) {
   case 0x70:
     dev->Status = val;
     if (val == 0) {
-      puts("virtio reset");
+      printf("virtio%d reset\n", dev->index);
       dev->InterruptStatus = 0;
       for (int queue=0; queue < dev->queue_count; queue++) {
         dev->queues[queue].read_ptr = 0;
@@ -277,27 +275,41 @@ uint32_t virtio_mmio_load(void *state, uint32_t offset) {
     ret = dev->type->device_type;
     break;
   case 0x10: // DeviceFeatures
-    switch (dev->DeviceFeaturesSel) {
-    case 1:
-      ret = 1;
-      break;
+    if (dev->type->feature_array) {
+      if (dev->DeviceFeaturesSel < dev->type->feature_array_length) {
+        ret = dev->type->feature_array[dev->DeviceFeaturesSel];
+      } else {
+        ret = 0;
+      }
+    } else {
+      switch (dev->DeviceFeaturesSel) {
+      case 1:
+        ret = 1;
+        break;
+      }
     }
+    printf("virtio%d DeviceFeatures[%d] == 0x%x\n", dev->index, dev->DeviceFeaturesSel, ret);
     break;
   case 0x34: // QueueNumMax
-    // TODO, delegate this to the type
-    switch (dev->QueueSel) {
-    case 0:
-      ret = 4096;
-      break;
-    case 1:
-      ret = 64;
-      break;
-    case 2:
-      ret = 4096;
-      break;
-    case 3:
-      ret = 4096;
-      break;
+    if (dev->type->queue_sizes) {
+      ret = dev->type->queue_sizes[dev->QueueSel];
+    } else {
+      printf("warning, virtio%d lacks a queue_sizes entry\n", dev->index);
+      // TODO, delegate this to the type
+      switch (dev->QueueSel) {
+      case 0:
+        ret = 4096;
+        break;
+      case 1:
+        ret = 64;
+        break;
+      case 2:
+        ret = 4096;
+        break;
+      case 3:
+        ret = 4096;
+        break;
+      }
     }
     printf("virtio%d QueueNumMax[%d] = %d\n", dev->index, dev->QueueSel, ret);
     break;

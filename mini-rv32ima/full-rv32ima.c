@@ -259,6 +259,16 @@ void patch_dtb(uint32_t dtb_ptr, bool enable_gfx, void **fb_virt_ptr, bool enabl
     mmio_add_handler(virtio_snd->reg_base, virtio_snd->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_snd, "virtio-snd");
   }
 #endif
+  {
+    uint32_t base = get_next_base(0x1000);
+    struct virtio_device *virtio_net = virtio_net_create(ram_image, base);
+    if (virtio_net) {
+      virtio_add_dtb(virtio_net, v_fdt);
+      mmio_add_handler(virtio_net->reg_base, virtio_net->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_net, "virtio-net");
+    } else {
+      fputs("error creating network device", stderr);
+    }
+  }
 
   int chosen = fdt_path_offset(v_fdt, "/chosen");
   if (chosen < 0) {

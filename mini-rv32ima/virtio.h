@@ -68,6 +68,9 @@ struct virtio_device;
 typedef struct {
   uint32_t device_type;
   int queue_count;
+  const int *queue_sizes;
+  const uint32_t *feature_array;
+  uint32_t feature_array_length;
   uint32_t (*config_load)(struct virtio_device *dev, uint32_t offset);
   void (*config_store)(struct virtio_device *dev, uint32_t offset, uint32_t val);
   void (*process_command)(struct virtio_device *dev, struct virtio_desc_internal *chain, int chain_length, int queue, uint16_t start_idx);
@@ -110,4 +113,6 @@ void virtio_config_changed(struct virtio_device *dev);
 struct virtio_device *virtio_input_create(void *ram_image, uint32_t base, bool mouse);
 struct virtio_device *virtio_blk_create(void *ram_image, uint32_t base);
 struct virtio_device *virtio_snd_create(void *ram_image, uint32_t base);
+struct virtio_device *virtio_net_create(void *ram_image, uint32_t base);
 void virtio_add_dtb(struct virtio_device*, void *v_fdt);
+void hexdump_ram(void *ram_image, uint32_t addr, uint32_t len);

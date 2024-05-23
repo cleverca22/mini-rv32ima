@@ -51,7 +51,21 @@ let
       CONFIG_TOUCH y
       CONFIG_UMOUNT y
       CONFIG_GETTY y
-    '' + lib.optionalString cfg.free "CONFIG_FREE y";
+    '' + (lib.optionalString cfg.free ''
+      CONFIG_FREE y
+    '')
+    + (lib.optionalString true ''
+      CONFIG_IP y
+      CONFIG_IFCONFIG y
+      CONFIG_FEATURE_IFCONFIG_STATUS y
+      CONFIG_FEATURE_IP_ADDRESS y
+      CONFIG_FEATURE_IP_LINK y
+      CONFIG_FEATURE_IP_ROUTE y
+      CONFIG_PING y
+      CONFIG_WGET y
+      CONFIG_FEATURE_WGET_STATUSBAR y
+    '')
+    ;
       #${builtins.readFile ./configs/busybox_config}
   };
   mkEnabledOption = name: (lib.mkEnableOption name) // { default = true; };

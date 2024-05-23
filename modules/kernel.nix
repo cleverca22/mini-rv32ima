@@ -87,6 +87,11 @@ let
       USB_SUPPORT = no;
       VHOST_MENU = no;
       VIRTIO_MENU = no;
+      WLAN = no;
+      WIRELESS = no;
+      IPV6 = no;
+      NET_9P = no;
+      ETHERNET = no;
     } // lib.optionalAttrs config.kernel.bake_in_initrd {
       INITRAMFS_SOURCE = freeform "${config.system.build.initrd}/initrd.cpio";
     } // lib.optionalAttrs virtio {
@@ -95,6 +100,13 @@ let
       VIRTIO_INPUT = yes;
       VIRTIO_MENU = yes;
       VIRTIO_MMIO = yes;
+
+      VIRTIO_NET = yes;
+      NETDEVICES = yes;
+      IPV6_SIT = no;
+      NET_CORE = yes;
+      NET = yes;
+      INET = yes;
     };
   };
 in {
