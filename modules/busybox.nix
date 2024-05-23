@@ -51,6 +51,7 @@ let
       CONFIG_TOUCH y
       CONFIG_UMOUNT y
       CONFIG_GETTY y
+      CONFIG_TIME y
     '' + (lib.optionalString cfg.free ''
       CONFIG_FREE y
     '')

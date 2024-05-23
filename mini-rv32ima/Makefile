@@ -9,24 +9,36 @@ NM ?= nm
 
 CFLAGS := -ffunction-sections -fdata-sections -Wall -Wstrict-prototypes -DCNFG_WINDOWS_DISABLE_BATCH
 LIBS := -lfdt
-SRCS := plic.c virtio.c full-rv32ima.c mmio.c pl011.c stdio.c virtio-net.c
-ifeq ($(BLOCK),1)
-  SRCS += virtio-blk.c
-  CFLAGS += -DWITH_BLOCK
-endif
-ifeq ($(INPUT),1)
-  SRCS += virtio-input.c
-  CFLAGS += -DWITH_INPUT
-endif
+SRCS := plic.c virtio.c full-rv32ima.c mmio.c pl011.c stdio.c
 
 ifeq ($(WINDOWS),1)
-  LIBS += -lgdi32 -lwinmm
+  LIBS += -lgdi32 -lwinmm -lwinpthread
+  INPUT ?= 1
 endif
 
 ifeq ($(LINUX),1)
   LIBS += -lasound
   SRCS += network_tap.c
+  INPUT ?= 1
+  X11 ?= 1
+  BLOCK ?= 1
 endif
+
+ifeq ($(BLOCK),1)
+  SRCS += virtio-blk.c
+  CFLAGS += -DWITH_BLOCK
+endif
+
+ifeq ($(INPUT),1)
+  SRCS += virtio-input.c
+  CFLAGS += -DWITH_INPUT
+endif
+
+ifeq ($(NET),1)
+  SRCS += virtio-net.c
+  CFLAGS += -WWITH_NET
+endif
+
 
 ifeq ($(X11),1)
   CFLAGS += -DWITH_X11

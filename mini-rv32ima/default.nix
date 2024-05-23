@@ -1,4 +1,4 @@
-{ lib, stdenv, dtc, xorg, mesa, http ? false, buildPackages, linuxHeaders, alsa-lib }:
+{ lib, stdenv, dtc, xorg, mesa, http ? false, buildPackages, linuxHeaders, alsa-lib, windows }:
 
 stdenv.mkDerivation {
   src = ./.;
@@ -6,8 +6,8 @@ stdenv.mkDerivation {
   makeFlags = [
     "mini-rv32ima full-rv32ima"
   ] ++ lib.optional http "HTTP=1"
-  ++ lib.optionals stdenv.hostPlatform.isLinux [ "BLOCK=1" "X11=1" "INPUT=1" "LINUX=1" ]
-  ++ lib.optionals stdenv.hostPlatform.isWindows [ "WINDOWS=1" "INPUT=1" ];
+  ++ lib.optionals stdenv.hostPlatform.isLinux [ "LINUX=1" ]
+  ++ lib.optionals stdenv.hostPlatform.isWindows [ "WINDOWS=1" ];
   installPhase = let
    ext = stdenv.hostPlatform.extensions.executable;
   in ''
@@ -23,5 +23,5 @@ stdenv.mkDerivation {
   STATIC = stdenv.hostPlatform.isStatic;
   buildInputs = [ dtc ]
     ++ lib.optionals stdenv.hostPlatform.isLinux [ xorg.libX11 alsa-lib ]
-    ++ lib.optional stdenv.hostPlatform.isWindows linuxHeaders;
+    ++ lib.optionals stdenv.hostPlatform.isWindows [ linuxHeaders windows.mingw_w64_pthreads ];
 }

@@ -265,6 +265,7 @@ void patch_dtb(uint32_t dtb_ptr, bool enable_gfx, void **fb_virt_ptr, bool enabl
     mmio_add_handler(virtio_snd->reg_base, virtio_snd->reg_size, virtio_mmio_load, virtio_mmio_store, virtio_snd, "virtio-snd");
   }
 #endif
+#ifdef WITH_NET
   {
     uint32_t base = get_next_base(0x1000);
     struct virtio_device *virtio_net = virtio_net_create(ram_image, base);
@@ -275,6 +276,7 @@ void patch_dtb(uint32_t dtb_ptr, bool enable_gfx, void **fb_virt_ptr, bool enabl
       fputs("error creating network device", stderr);
     }
   }
+#endif
 
   int chosen = fdt_path_offset(v_fdt, "/chosen");
   if (chosen < 0) {
