@@ -199,7 +199,7 @@ void send_event(virtio_input_instance *ctx, uint16_t type, uint16_t code, uint32
   evt->type = type;
   evt->code = code;
   evt->value = value;
-  virtio_flag_completion(node->dev, node->chain, node->queue, node->start_idx, 8);
+  virtio_flag_completion(node->dev, node->chain, node->queue, node->start_idx, 8, false);
   ctx->virtio_input_queue_head = node->next;
   memset(node, 0xaa, sizeof(*node));
   free(node);

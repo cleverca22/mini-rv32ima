@@ -143,7 +143,7 @@ again2:
   //printf(RED"%d total IO in this kick\n"DEFAULT, total_chains);
 }
 
-void virtio_flag_completion(struct virtio_device *dev, struct virtio_desc_internal *chain, int queue, uint16_t start_idx, uint32_t written) {
+void virtio_flag_completion(struct virtio_device *dev, struct virtio_desc_internal *chain, int queue, uint16_t start_idx, uint32_t written, bool need_lock) {
   struct virtio_used_ring *ring = cast_guest_ptr(dev->ram_image, dev->queues[queue].QueueDeviceLow);
   // TODO, protect with a mutex
   int index = dev->queues[queue].write_ptr % dev->queues[queue].QueueNum;
@@ -154,16 +154,16 @@ void virtio_flag_completion(struct virtio_device *dev, struct virtio_desc_intern
   dev->queues[queue].write_ptr++;
   ring->idx = dev->queues[queue].write_ptr;
   dev->InterruptStatus |= 1;
-  plic_raise_irq(dev->irq);
+  plic_raise_irq(dev->irq, need_lock);
   free(chain);
   //hexdump_ram(dev->ram_image, dev->queues[queue].QueueDeviceLow, 32);
   //printf(RED"command at idx %d completed into %d(%d), %d written\n"DEFAULT, start_idx, dev->queues[queue].write_ptr - 1, index, written);
 }
 
-void virtio_config_changed(struct virtio_device *dev) {
+void virtio_config_changed(struct virtio_device *dev, bool need_lock) {
   dev->ConfigGeneration++;
   dev->InterruptStatus |= 2;
-  plic_raise_irq(dev->irq);
+  plic_raise_irq(dev->irq, need_lock);
 }
 
 static void virtio_dump_rings(struct virtio_device *dev) {
@@ -218,7 +218,7 @@ void virtio_mmio_store(void *state, uint32_t offset, uint32_t val) {
   case 0x64: // InterruptACK
     dev->InterruptStatus &= ~val;
     if (dev->InterruptStatus == 0) {
-      plic_clear_irq(dev->irq);
+      plic_clear_irq(dev->irq, false);
     }
     break;
   case 0x70:

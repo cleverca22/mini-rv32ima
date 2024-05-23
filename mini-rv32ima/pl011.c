@@ -13,9 +13,9 @@ uint32_t irq_mask = 0;
 
 static void pl011_maybe_irq(void) {
   if (irq_status & irq_mask) {
-    plic_raise_irq(uart_irq);
+    plic_raise_irq(uart_irq, false);
   } else {
-    plic_clear_irq(uart_irq);
+    plic_clear_irq(uart_irq, false);
   }
 }
 

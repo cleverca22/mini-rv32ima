@@ -8,6 +8,7 @@
 #include <assert.h>
 
 #include <libfdt.h>
+#include <pthread.h>
 
 #include "default64mbdtc.h"
 
@@ -62,13 +63,18 @@ uint8_t * ram_image = 0;
 struct MiniRV32IMAState * core;
 
 bool want_exit = false;
+static pthread_mutex_t irq_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void hart_raise_irq(int irq) {
+void hart_raise_irq(int irq, bool need_lock) {
+  if (need_lock) pthread_mutex_lock(&irq_mutex);
   raise_hart_irq(core, irq);
+  if (need_lock) pthread_mutex_unlock(&irq_mutex);
 }
 
-void hart_clear_irq(int irq) {
+void hart_clear_irq(int irq, bool need_lock) {
+  if (need_lock) pthread_mutex_lock(&irq_mutex);
   clear_hart_irq(core, irq);
+  if (need_lock) pthread_mutex_unlock(&irq_mutex);
 }
 
 #define WEAK __attribute__((weak))
@@ -416,7 +422,9 @@ restart:
 		if( single_step )
 			DumpState( core, ram_image);
 
+                pthread_mutex_lock(&irq_mutex);
 		int ret = MiniRV32IMAStep( core, ram_image, 0, elapsedUs, instrs_per_flip ); // Execute upto 1024 cycles before breaking out.
+                pthread_mutex_unlock(&irq_mutex);
 		switch( ret )
 		{
 			case 0: break;

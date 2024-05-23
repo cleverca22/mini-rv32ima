@@ -124,7 +124,7 @@ static void virtio_process_tx(struct virtio_device *dev, struct virtio_desc_inte
   uint32_t packet_size = chain[0].message_len - 12;
   //hexdump_packet(packet, packet_size);
   network_transmit(packet, packet_size);
-  virtio_flag_completion(dev, chain, 1, start_idx, chain[0].message_len);
+  virtio_flag_completion(dev, chain, 1, start_idx, chain[0].message_len, false);
 }
 
 static void virtio_net_process_command(struct virtio_device *dev, struct virtio_desc_internal *chain, int chain_length, int queue, uint16_t start_idx) {
@@ -180,7 +180,7 @@ static void callback(uint8_t *packet, uint32_t size) {
     memcpy(node->dest, newbuf, newsize);
     free(newbuf);
 
-    virtio_flag_completion(node->dev, node->chain, 0, node->start_idx, newsize);
+    virtio_flag_completion(node->dev, node->chain, 0, node->start_idx, newsize, true);
     free(node);
   } else {
     //printf("%d byte packet dropped\n", size);

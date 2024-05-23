@@ -47,18 +47,18 @@ void plic_store(void *state, uint32_t addr, uint32_t val) {
   }
 }
 
-void plic_raise_irq(int irq) {
-  pthread_mutex_lock(&irq_mutex);
+void plic_raise_irq(int irq, bool need_lock) {
+  if (need_lock) pthread_mutex_lock(&irq_mutex);
   irq_pending |= 1<<irq;
   uint32_t unmasked_pending_irq = (irq_mask & irq_pending) & ~irq_claimed;
-  if (unmasked_pending_irq) hart_raise_irq(11);
-  pthread_mutex_unlock(&irq_mutex);
+  if (unmasked_pending_irq) hart_raise_irq(11, need_lock);
+  if (need_lock) pthread_mutex_unlock(&irq_mutex);
 }
 
-void plic_clear_irq(int irq) {
-  pthread_mutex_lock(&irq_mutex);
+void plic_clear_irq(int irq, bool need_lock) {
+  if (need_lock) pthread_mutex_lock(&irq_mutex);
   irq_pending &= ~(1<<irq);
   uint32_t unmasked_pending_irq = (irq_mask & irq_pending) & ~irq_claimed;
-  if (unmasked_pending_irq == 0) hart_clear_irq(11);
-  pthread_mutex_unlock(&irq_mutex);
+  if (unmasked_pending_irq == 0) hart_clear_irq(11, need_lock);
+  if (need_lock) pthread_mutex_unlock(&irq_mutex);
 }
