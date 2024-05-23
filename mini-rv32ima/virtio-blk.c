@@ -28,7 +28,7 @@ static void openfile(struct virtio_device *dev) {
   uint64_t sectors = size / 512;
   if (sectors != sector_count) {
     sector_count = sectors;
-    virtio_config_changed(dev);
+    virtio_config_changed(dev, false);
   }
 }
 
@@ -93,7 +93,7 @@ static void virtio_blk_process_command(struct virtio_device *dev, struct virtio_
     written = 1;
     break;
   }
-  virtio_flag_completion(dev, chain, queue, start_idx, written);
+  virtio_flag_completion(dev, chain, queue, start_idx, written, false);
 }
 
 static const virtio_device_type virtio_blk_type = {
