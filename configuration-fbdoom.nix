@@ -13,5 +13,9 @@
     # -playdemo demo.lmp";
     shellOnTTY1 = false;
   };
-  kernel.fb_console = false;
+  kernel = {
+    block = false;
+    fb_console = false;
+    network = false;
+  };
 }
