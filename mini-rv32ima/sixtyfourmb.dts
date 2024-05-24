@@ -62,7 +62,7 @@
       current-speed = <115200>;
     };
 
-    poweroff {
+    poweroff { // POWER_RESET_SYSCON_POWEROFF
             value = <0x5555>;
             offset = <0x00>;
             regmap = <0x04>;

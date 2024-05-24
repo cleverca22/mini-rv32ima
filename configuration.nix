@@ -1,5 +1,13 @@
 { pkgs, ... }:
 
+let
+  test = pkgs.writeScript "dotest" ''
+    #!/bin/sh
+    echo $0
+    ping 8.8.8.8
+    poweroff
+  '';
+in
 {
   imports = [
   ];

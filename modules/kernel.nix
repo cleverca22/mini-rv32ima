@@ -8,11 +8,15 @@ let
   kernel = pkgs.linux_latest.override {
     enableCommonConfig = false;
     autoModules = false;
+    defconfig = "allnoconfig";
     structuredExtraConfig = with lib.kernel; {
       #CRYPTO = no;
       #MODULES = no; # TODO, breaks the nix build
+      MODULES = yes;
       ARCH_RV32I = yes;
       BINFMT_ELF_FDPIC = yes;
+      BINFMT_SCRIPT = yes; # #! support
+      BLK_DEV_INITRD = yes; # support having an initrd at all
       BLOCK = if cfg.block then yes else no;
       BPF_SYSCALL = no;
       CGROUPS = no;
@@ -30,6 +34,8 @@ let
       DEBUG_SG = no;
       DEBUG_SPINLOCK = no;
       DEBUG_TIMEKEEPING = no;
+      DEVTMPFS = yes;
+      DEVTMPFS_MOUNT = yes;
       DRM = no;
       FB = if cfg.gfx then yes else no;
       FB_SIMPLE = if cfg.gfx then yes else no; # simple-framebuffer
@@ -74,6 +80,9 @@ let
       RISCV_ISA_FALLBACK = no;
       SCHED_DEBUG = no; # 17448 bytes
       SERIAL_8250 = yes; # TODO, remove
+      POWER_RESET_SYSCON_POWEROFF = yes;
+      POWER_RESET = yes;
+      SOC_VIRT = yes;
       SERIAL_AMBA_PL011 = yes;
       SERIAL_AMBA_PL011_CONSOLE = yes;
       SERIAL_EARLYCON = yes;
@@ -83,6 +92,7 @@ let
       SND = no;
       SOUND = no;
       SPI = no;
+      SOC_STARFIVE = yes;
       SUSPEND = no;
       USB_SUPPORT = no;
       VHOST_MENU = no;
@@ -132,6 +142,10 @@ in {
       block = mkOption {
         # 1.5mb
         default = false;
+        type = types.bool;
+      };
+      network = mkOption {
+        default = true;
         type = types.bool;
       };
     };
