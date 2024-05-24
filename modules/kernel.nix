@@ -21,11 +21,15 @@ let
     CC_OPTIMIZE_FOR_SIZE = yes;
     CGROUPS = no;
     CHECKPOINT_RESTORE = no;
+    CLK_STARFIVE_JH7100 = no;
+    CLK_STARFIVE_JH7110_PLL = no;
     CLK_STARFIVE_JH7110_SYS = no;
     CMODEL_MEDLOW = yes;
+    CONFIGFS_FS = no;
     CONSOLE_TRANSLATIONS = no;
     COREDUMP = no;
     CPU_FREQ = no;
+    CPU_IDLE = no;
     DAX = no;
     DEBUG_ATOMIC_SLEEP = no;
     DEBUG_BUGVERBOSE = no;
@@ -39,12 +43,15 @@ let
     DEBUG_SG = no;
     DEBUG_SPINLOCK = no;
     DEBUG_TIMEKEEPING = no;
+    DETECT_HUNG_TASK = no;
     DEVMEM = no;
     DEVTMPFS = yes;
     DEVTMPFS_MOUNT = yes;
     DMADEVICES = no;
     DRM = no;
     EPOLL = no;
+    ERRATA_SIFIVE = no;
+    ERRATA_THEAD = no;
     ETHERNET = no;
     EVENTFD = no;
     EXPERT = yes;
@@ -57,19 +64,24 @@ let
     FRAMEBUFFER_CONSOLE_DETECT_PRIMARY = yes;
     FW_LOADER = no;
     GENERIC_PCI_IOMAP = no;
+    GENERIC_PHY = no;
+    GPIOLIB = no;
     HID_SUPPORT = no;
     HIGH_RES_TIMERS = no;
+    HZ_PERIODIC = yes;
     I2C = no;
     IIO = no;
     IKCONFIG = no;
-    INPUT_EVDEV = yes; # /dev/input/event0
+    INPUT_EVDEV = if cfg.evdev then yes else no; # /dev/input/event0
     INPUT_KEYBOARD = no;
     INPUT_MOUSE = no;
     INPUT_MOUSEDEV = no; # /dev/input/mouseX and /dev/input/mice
     IO_URING = no;
     IPV6 = no;
+    KALLSYMS = no;
     KEYS = no;
     LD_DEAD_CODE_DATA_ELIMINATION = yes;
+    LEGACY_PTYS = no;
     LSM = freeform "";
     MEMFD_CREATE = no;
     MEMTEST = no;
@@ -85,8 +97,10 @@ let
     NET_NS = no;
     NLS = no;
     NONPORTABLE = yes;
+    NO_HZ_IDLE = no;
     NVMEM = no;
     PAGE_OFFSET = freeform "0x80000000";
+    PAGE_REPORTING = no;
     PCI = no;
     PERF_EVENTS = no;
     PHYS_RAM_BASE = freeform "0x80000000";
@@ -103,6 +117,7 @@ let
     POWER_SUPPLY = no;
     PRINTK = if cfg.printk then yes else no;
     PRINTK_TIME = yes;
+    PROC_CHILDREN = no;
     PROFILING = no;
     RANDOMIZE_KSTACK_OFFSET = no;
     RCU_EQS_DEBUG = no;
@@ -115,10 +130,12 @@ let
     RD_ZSTD = no;
     REGULATOR = no;
     RESET_POLARFIRE_SOC = no;
+    RESET_SIMPLE = no;
     RESET_STARFIVE_JH7100 = no;
     RISCV_EFFICIENT_UNALIGNED_ACCESS = yes;
     RISCV_ISA_C = no; # mini-rv32ima lacks support for the c extensions
     RISCV_ISA_FALLBACK = no;
+    RPMSG_VIRTIO = no;
     RTC_CLASS = no;
     SCHED_DEBUG = no; # 17448 bytes
     SCSI_MOD = no;
@@ -135,9 +152,11 @@ let
     SMP = no;
     SOC_STARFIVE = yes;
     SOC_VIRT = yes;
+    SOFTLOCKUP_DETECTOR = no;
     SPI = no;
     STACKPROTECTOR = no;
     STACKTRACE = no;
+    STARFIVE_JH8100_INTC = no;
     SUSPEND = no;
     SYNC_FILE = no;
     SYSFS_SYSCALL = no;
@@ -229,6 +248,10 @@ in {
         type = types.bool;
       };
       snd = mkOption {
+        default = false;
+        type = types.bool;
+      };
+      evdev = mkOption {
         default = false;
         type = types.bool;
       };

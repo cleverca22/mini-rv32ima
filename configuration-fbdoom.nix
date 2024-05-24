@@ -17,5 +17,6 @@
     block = false;
     fb_console = false;
     network = false;
+    evdev = true; # used by fbdoom for all input
   };
 }
