@@ -55,7 +55,7 @@ let
     '' + (lib.optionalString cfg.free ''
       CONFIG_FREE y
     '')
-    + (lib.optionalString true ''
+    + (lib.optionalString config.kernel.network ''
       CONFIG_IP y
       CONFIG_IFCONFIG y
       CONFIG_FEATURE_IFCONFIG_STATUS y

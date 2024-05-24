@@ -9,6 +9,7 @@ let
     #MODULES = no; # TODO, breaks the nix build
     ADVISE_SYSCALLS = no;
     AIO = no;
+    ALLOW_DEV_COREDUMP = no;
     ARCH_RV32I = yes;
     BASE_FULL = no;
     BASE_SMALL = yes; # reduces memory usage at the cost of cpu perf
@@ -25,6 +26,7 @@ let
     CONSOLE_TRANSLATIONS = no;
     COREDUMP = no;
     CPU_FREQ = no;
+    DAX = no;
     DEBUG_ATOMIC_SLEEP = no;
     DEBUG_BUGVERBOSE = no;
     DEBUG_KERNEL = no;
@@ -37,8 +39,10 @@ let
     DEBUG_SG = no;
     DEBUG_SPINLOCK = no;
     DEBUG_TIMEKEEPING = no;
+    DEVMEM = no;
     DEVTMPFS = yes;
     DEVTMPFS_MOUNT = yes;
+    DMADEVICES = no;
     DRM = no;
     EPOLL = no;
     ETHERNET = no;
@@ -46,12 +50,16 @@ let
     EXPERT = yes;
     FHANDLE = no;
     FILE_LOCKING = no;
+    FONTS = yes;
+    FONT_8x8 = no;
     FPU = no;
     FRAMEBUFFER_CONSOLE = if cfg.fb_console then yes else no; # render text on fb0
+    FRAMEBUFFER_CONSOLE_DETECT_PRIMARY = yes;
     FW_LOADER = no;
     GENERIC_PCI_IOMAP = no;
     HID_SUPPORT = no;
     HIGH_RES_TIMERS = no;
+    I2C = no;
     IIO = no;
     IKCONFIG = no;
     INPUT_EVDEV = yes; # /dev/input/event0
@@ -60,9 +68,12 @@ let
     INPUT_MOUSEDEV = no; # /dev/input/mouseX and /dev/input/mice
     IO_URING = no;
     IPV6 = no;
+    KEYS = no;
     LD_DEAD_CODE_DATA_ELIMINATION = yes;
     LSM = freeform "";
+    MEMFD_CREATE = no;
     MEMTEST = no;
+    MMAP_ALLOW_UNINITIALIZED = yes;
     MMC = no;
     MMU = no;
     MODULES = yes;
@@ -74,6 +85,7 @@ let
     NET_NS = no;
     NLS = no;
     NONPORTABLE = yes;
+    NVMEM = no;
     PAGE_OFFSET = freeform "0x80000000";
     PCI = no;
     PERF_EVENTS = no;
@@ -85,12 +97,14 @@ let
     PINCTRL_STARFIVE_JH7110_AON = no;
     PINCTRL_STARFIVE_JH7110_SYS = no;
     PINMUX = no;
+    PM = no;
     POWER_RESET = yes;
     POWER_RESET_SYSCON_POWEROFF = yes;
     POWER_SUPPLY = no;
     PRINTK = if cfg.printk then yes else no;
     PRINTK_TIME = yes;
     PROFILING = no;
+    RANDOMIZE_KSTACK_OFFSET = no;
     RCU_EQS_DEBUG = no;
     RD_BZIP2 = no;
     RD_GZIP = if cfg.gzip_initrd then yes else no;
@@ -102,10 +116,13 @@ let
     REGULATOR = no;
     RESET_POLARFIRE_SOC = no;
     RESET_STARFIVE_JH7100 = no;
+    RISCV_EFFICIENT_UNALIGNED_ACCESS = yes;
     RISCV_ISA_C = no; # mini-rv32ima lacks support for the c extensions
     RISCV_ISA_FALLBACK = no;
+    RTC_CLASS = no;
     SCHED_DEBUG = no; # 17448 bytes
     SCSI_MOD = no;
+    SECCOMP = no;
     SERIAL_8250 = no;
     SERIAL_AMBA_PL011 = yes;
     SERIAL_AMBA_PL011_CONSOLE = yes;
@@ -113,17 +130,23 @@ let
     SERIAL_OF_PLATFORM = yes;
     SERIO = no;
     SIGNALFD = no;
+    SLUB_DEBUG = no;
+    SLUB_TINY = yes;
     SMP = no;
     SOC_STARFIVE = yes;
     SOC_VIRT = yes;
     SPI = no;
+    STACKPROTECTOR = no;
+    STACKTRACE = no;
     SUSPEND = no;
+    SYNC_FILE = no;
     SYSFS_SYSCALL = no;
     SYSVIPC = no;
     TIMERFD = no;
     USB_SUPPORT = no;
     VHOST_MENU = no;
     VIRTIO_MENU = no;
+    VM_EVENT_COUNTERS = no;
     WIRELESS = no;
     WLAN = no;
   };
@@ -178,6 +201,7 @@ in {
         type = types.bool;
       };
       fb_console = mkOption {
+        # 32kb
         default = true;
         type = types.bool;
       };
@@ -200,6 +224,7 @@ in {
         type = types.bool;
       };
       network = mkOption {
+        # 1046kb
         default = true;
         type = types.bool;
       };
