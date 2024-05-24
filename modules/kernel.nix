@@ -7,13 +7,19 @@ let
   base = with lib.kernel; {
     #CRYPTO = no;
     #MODULES = no; # TODO, breaks the nix build
+    ADVISE_SYSCALLS = no;
+    AIO = no;
     ARCH_RV32I = yes;
+    BASE_FULL = no;
+    BASE_SMALL = yes; # reduces memory usage at the cost of cpu perf
     BINFMT_ELF_FDPIC = yes;
     BINFMT_SCRIPT = yes; # #! support
     BLK_DEV_INITRD = yes; # support having an initrd at all
     BLOCK = no;
     BPF_SYSCALL = no;
+    CC_OPTIMIZE_FOR_SIZE = yes;
     CGROUPS = no;
+    CHECKPOINT_RESTORE = no;
     CLK_STARFIVE_JH7110_SYS = no;
     CMODEL_MEDLOW = yes;
     CONSOLE_TRANSLATIONS = no;
@@ -34,21 +40,27 @@ let
     DEVTMPFS = yes;
     DEVTMPFS_MOUNT = yes;
     DRM = no;
+    EPOLL = no;
     ETHERNET = no;
+    EVENTFD = no;
     EXPERT = yes;
+    FHANDLE = no;
     FILE_LOCKING = no;
     FPU = no;
     FRAMEBUFFER_CONSOLE = if cfg.fb_console then yes else no; # render text on fb0
     FW_LOADER = no;
     GENERIC_PCI_IOMAP = no;
     HID_SUPPORT = no;
+    HIGH_RES_TIMERS = no;
     IIO = no;
     IKCONFIG = no;
     INPUT_EVDEV = yes; # /dev/input/event0
     INPUT_KEYBOARD = no;
     INPUT_MOUSE = no;
     INPUT_MOUSEDEV = no; # /dev/input/mouseX and /dev/input/mice
+    IO_URING = no;
     IPV6 = no;
+    LD_DEAD_CODE_DATA_ELIMINATION = yes;
     LSM = freeform "";
     MEMTEST = no;
     MMC = no;
@@ -64,6 +76,7 @@ let
     NONPORTABLE = yes;
     PAGE_OFFSET = freeform "0x80000000";
     PCI = no;
+    PERF_EVENTS = no;
     PHYS_RAM_BASE = freeform "0x80000000";
     PHYS_RAM_BASE_FIXED = yes;
     PINCONF = no;
@@ -75,6 +88,7 @@ let
     POWER_RESET = yes;
     POWER_RESET_SYSCON_POWEROFF = yes;
     POWER_SUPPLY = no;
+    PRINTK = if cfg.printk then yes else no;
     PRINTK_TIME = yes;
     PROFILING = no;
     RCU_EQS_DEBUG = no;
@@ -98,6 +112,7 @@ let
     SERIAL_EARLYCON = yes;
     SERIAL_OF_PLATFORM = yes;
     SERIO = no;
+    SIGNALFD = no;
     SMP = no;
     SOC_STARFIVE = yes;
     SOC_VIRT = yes;
@@ -105,6 +120,7 @@ let
     SUSPEND = no;
     SYSFS_SYSCALL = no;
     SYSVIPC = no;
+    TIMERFD = no;
     USB_SUPPORT = no;
     VHOST_MENU = no;
     VIRTIO_MENU = no;
@@ -189,6 +205,10 @@ in {
       };
       snd = mkOption {
         default = false;
+        type = types.bool;
+      };
+      printk = mkOption {
+        default = true;
         type = types.bool;
       };
     };
