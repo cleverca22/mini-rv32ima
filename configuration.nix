@@ -32,6 +32,7 @@ in
   #initrd.inittab = "ttyAMA0::respawn:poweroff";
   kernel = {
     gfx = true;
+    block = false;
   };
   initrd.postInit = ''
     ip link set eth0 up
