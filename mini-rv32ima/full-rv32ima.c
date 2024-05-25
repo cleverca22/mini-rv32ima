@@ -442,7 +442,9 @@ restart:
 			case 0x5555: //syscon code for power-off
                         {
                           printf( "POWEROFF@0x%08x%08x\n", core->cycleh, core->cyclel );
+#ifdef WITH_NET
                           virtio_net_teardown();
+#endif
                           return 0;
                         }
 			default: printf( "Unknown failure\n" ); break;
@@ -474,7 +476,9 @@ restart:
 	}
         // virtio_dump_all();
 
+#ifdef WITH_NET
   virtio_net_teardown();
+#endif
   DumpState( core, ram_image);
   printf("opcodes: 0x%x 0x%x\n", core->cycleh, core->cyclel);
   free(ram_image);
