@@ -51,40 +51,40 @@ static uint32_t virtio_blk_config_load(struct virtio_device *dev, uint32_t offse
 static void virtio_blk_config_store(struct virtio_device *dev, uint32_t offset, uint32_t val) {
 }
 
-static void virtio_blk_process_command(struct virtio_device *dev, struct virtio_desc_internal *chain, int chain_length, int queue, uint16_t start_idx) {
+static void virtio_blk_process_command(struct virtio_device *dev, virtio_chain *chain, int queue, uint16_t start_idx) {
   openfile(dev);
-  assert(chain_length == 3);
-  assert(chain[0].message_len == 16);
-  assert((chain[0].flags & 2) == 0);
-  const struct virtio_blk_req *req = chain[0].message;
-  void *buffer = chain[1].message;
-  assert(chain[2].message_len == 1);
-  assert(chain[2].flags & 2);
-  uint8_t *status = chain[2].message;
+  assert(chain->chain_length == 3);
+  assert(chain->chain[0].message_len == 16);
+  assert((chain->chain[0].flags & 2) == 0);
+  const struct virtio_blk_req *req = chain->chain[0].message;
+  void *buffer = chain->chain[1].message;
+  assert(chain->chain[2].message_len == 1);
+  assert(chain->chain[2].flags & 2);
+  uint8_t *status = chain->chain[2].message;
   uint32_t written = 0;
   int ret;
 
-  printf(GREEN"type: %d, sector: %ld bytes: %d\n"DEFAULT, req->type, req->sector, chain[1].message_len);
+  printf(GREEN"type: %d, sector: %ld bytes: %d\n"DEFAULT, req->type, req->sector, chain->chain[1].message_len);
   switch (req->type) {
   case 0: // read
-    assert(chain[1].flags & 2); // buffer must be write type
-    ret = pread(fh, buffer, chain[1].message_len, req->sector * 512);
-    if (ret == chain[1].message_len) {
+    assert(chain->chain[1].flags & 2); // buffer must be write type
+    ret = pread(fh, buffer, chain->chain[1].message_len, req->sector * 512);
+    if (ret == chain->chain[1].message_len) {
       *status = 0;
-      written = chain[1].message_len + 1;
+      written = chain->chain[1].message_len + 1;
     } else {
-      written = chain[1].message_len + 1;
+      written = chain->chain[1].message_len + 1;
       *status = 1;
     }
     break;
   case 1: // write
-    assert((chain[1].flags & 2) == 0); // buffer must be read type
-    ret = pwrite(fh, buffer, chain[1].message_len, req->sector * 512);
-    if (ret == chain[1].message_len) {
+    assert((chain->chain[1].flags & 2) == 0); // buffer must be read type
+    ret = pwrite(fh, buffer, chain->chain[1].message_len, req->sector * 512);
+    if (ret == chain->chain[1].message_len) {
       *status = 0;
-      written = chain[1].message_len + 1;
+      written = chain->chain[1].message_len + 1;
     } else {
-      written = chain[1].message_len + 1;
+      written = chain->chain[1].message_len + 1;
       *status = 1;
     }
     break;
@@ -93,7 +93,8 @@ static void virtio_blk_process_command(struct virtio_device *dev, struct virtio_
     written = 1;
     break;
   }
-  virtio_flag_completion(dev, chain, queue, start_idx, written, false);
+  chain->bytes_written = written;
+  virtio_flag_completion(dev, chain, queue, start_idx, false);
 }
 
 static const virtio_device_type virtio_blk_type = {

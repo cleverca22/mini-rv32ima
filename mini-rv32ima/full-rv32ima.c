@@ -318,7 +318,7 @@ int main( int argc, char ** argv ) {
   const bool enable_gfx = true;
   const bool enable_virtio_blk = false;
   const bool enable_virtio_input = true;
-  const char * kernel_command_line = "earlycon=pl011,0x10000000 console=tty1 console=ttyAMA0 no_hash_pointers";
+  const char * kernel_command_line = "earlycon=pl011,0x10000000 console=tty1 console=ttyAMA0 no_hash_pointers ip=dhcp";
   void *fb_virt_ptr = NULL;
 
   for( i = 1; i < argc; i++ ) {
@@ -376,8 +376,9 @@ restart:
   // The core lives at the end of RAM.
   uint32_t core_guest_ptr = guest_top_alloc(sizeof(struct MiniRV32IMAState), "CORE");
   core = cast_guest_ptr(ram_image, core_guest_ptr);
+  memset(core, 0, sizeof(struct MiniRV32IMAState));
   {
-    memset( ram_image, 0, ram_amt );
+    //memset( ram_image, 0, ram_amt );
     load_kernel(image_file_name);
 
     if( dtb_file_name && (strcmp( dtb_file_name, "disable" ) == 0) ) {
@@ -438,7 +439,12 @@ restart:
                           break;
 			case 3: instct = 0; break;
 			case 0x7777: goto restart;	//syscon code for restart
-			case 0x5555: printf( "POWEROFF@0x%08x%08x\n", core->cycleh, core->cyclel ); return 0; //syscon code for power-off
+			case 0x5555: //syscon code for power-off
+                        {
+                          printf( "POWEROFF@0x%08x%08x\n", core->cycleh, core->cyclel );
+                          virtio_net_teardown();
+                          return 0;
+                        }
 			default: printf( "Unknown failure\n" ); break;
 		}
                 if (enable_gfx) {
@@ -468,7 +474,9 @@ restart:
 	}
         // virtio_dump_all();
 
-	DumpState( core, ram_image);
+  virtio_net_teardown();
+  DumpState( core, ram_image);
+  printf("opcodes: 0x%x 0x%x\n", core->cycleh, core->cyclel);
   free(ram_image);
 
   if (want_exit) return 1;

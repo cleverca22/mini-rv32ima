@@ -124,40 +124,61 @@ again:
 
       int slot = 0;
       idx = start_idx;
+
+      int readable_bytes = 0;
+      int writeable_bytes = 0;
 again2:
       desc = &table[idx];
       chain[slot].message = cast_guest_ptr(dev->ram_image, desc->addr);
       chain[slot].message_len = desc->len;
       chain[slot].flags = desc->flags;
+      if (desc->flags & VIRTQ_DESC_F_WRITE) {
+        writeable_bytes += desc->len;
+      } else {
+        readable_bytes += desc->len;
+      }
       slot++;
       if (desc->flags & 1) {
         idx = desc->next;
         goto again2;
       }
+
+      virtio_chain *c = malloc(sizeof(virtio_chain));
+      c->chain = chain;
+      c->chain_length = descriptor_chain_length;
+      c->seek_chain = 0;
+      c->seek_bytes = 0;
+      c->readable_bytes = readable_bytes;
+      c->writeable_bytes = writeable_bytes;
+      c->bytes_written = 0;
+
       //printf(RED"command at idx %d(%d)->%d with %d buffers\n"DEFAULT, n, n_capped, start_idx, descriptor_chain_length);
       assert(dev->type->process_command);
-      dev->type->process_command(dev, chain, descriptor_chain_length, queue, start_idx);
+      dev->type->process_command(dev, c, queue, start_idx);
       total_chains++;
     }
   }
   //printf(RED"%d total IO in this kick\n"DEFAULT, total_chains);
 }
 
-void virtio_flag_completion(struct virtio_device *dev, struct virtio_desc_internal *chain, int queue, uint16_t start_idx, uint32_t written, bool need_lock) {
+void virtio_flag_completion(struct virtio_device *dev, virtio_chain *chain, int queue, uint16_t start_idx, bool need_lock) {
   struct virtio_used_ring *ring = cast_guest_ptr(dev->ram_image, dev->queues[queue].QueueDeviceLow);
   // TODO, protect with a mutex
   int index = dev->queues[queue].write_ptr % dev->queues[queue].QueueNum;
 
   ring->ring[index].id = start_idx;
-  ring->ring[index].written = written;
+  ring->ring[index].written = chain->bytes_written;
 
   dev->queues[queue].write_ptr++;
   ring->idx = dev->queues[queue].write_ptr;
   dev->InterruptStatus |= 1;
   plic_raise_irq(dev->irq, need_lock);
-  free(chain);
+
   //hexdump_ram(dev->ram_image, dev->queues[queue].QueueDeviceLow, 32);
-  //printf(RED"command at idx %d completed into %d(%d), %d written\n"DEFAULT, start_idx, dev->queues[queue].write_ptr - 1, index, written);
+  //printf(RED"command at idx %d completed into %d(%d), %d written\n"DEFAULT, start_idx, dev->queues[queue].write_ptr - 1, index, chain->bytes_written);
+
+  free(chain->chain);
+  free(chain);
 }
 
 void virtio_config_changed(struct virtio_device *dev, bool need_lock) {

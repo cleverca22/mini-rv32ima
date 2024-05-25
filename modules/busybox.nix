@@ -52,19 +52,21 @@ let
       CONFIG_UMOUNT y
       CONFIG_GETTY y
       CONFIG_TIME y
+      CONFIG_CRC32 y
     '' + (lib.optionalString cfg.free ''
       CONFIG_FREE y
     '')
     + (lib.optionalString config.kernel.network ''
-      CONFIG_IP y
-      CONFIG_IFCONFIG y
+      CONFIG_FEATURE_FANCY_PING y
       CONFIG_FEATURE_IFCONFIG_STATUS y
       CONFIG_FEATURE_IP_ADDRESS y
       CONFIG_FEATURE_IP_LINK y
       CONFIG_FEATURE_IP_ROUTE y
+      CONFIG_FEATURE_WGET_STATUSBAR y
+      CONFIG_IFCONFIG y
+      CONFIG_IP y
       CONFIG_PING y
       CONFIG_WGET y
-      CONFIG_FEATURE_WGET_STATUSBAR y
     '')
     ;
       #${builtins.readFile ./configs/busybox_config}

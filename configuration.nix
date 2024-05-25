@@ -33,10 +33,9 @@ in
   kernel = {
     gfx = true;
     block = false;
+    gzip_initrd = false;
   };
   initrd.postInit = ''
-    ip link set eth0 up
-    ip addr add 10.0.0.100/24 dev eth0
-    ip route add via 10.0.0.1 dev eth0
+    cat /proc/net/pnp
   '';
 }

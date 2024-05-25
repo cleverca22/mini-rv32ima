@@ -190,6 +190,8 @@ let
     NET_CORE = yes;
     NET = yes;
     INET = yes;
+    IP_PNP = yes; # allows ip=dhcp in cmdline, adds ~8kb to kernel binary
+    IP_PNP_DHCP = yes; # which protocol to use
   };
   virtio_cfg = with lib.kernel; {
     VIRTIO_CONSOLE = no; # 25240 bytes

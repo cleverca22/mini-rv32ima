@@ -2,11 +2,14 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 
 #define CSI "\x1b["
 #define RED     CSI"31m"
 #define GREEN   CSI"32m"
 #define DEFAULT CSI"39m"
+
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
 
 typedef struct {
   uint16_t flags;
@@ -28,6 +31,10 @@ struct virtio_used_ring {
 typedef struct {
   uint64_t addr;
   uint32_t len;
+#define VIRTQ_DESC_F_NEXT       1
+// write is host->guest
+#define VIRTQ_DESC_F_WRITE      2
+#define VIRTQ_DESC_F_INDIRECT   4
   uint16_t flags;
   uint16_t next;
 } virtio_desc;
@@ -37,6 +44,16 @@ struct virtio_desc_internal {
   uint32_t message_len;
   uint16_t flags;
 };
+
+typedef struct {
+  struct virtio_desc_internal *chain;
+  int chain_length;
+  int seek_chain;
+  int seek_bytes;
+  int readable_bytes;
+  int writeable_bytes;
+  int bytes_written;
+} virtio_chain;
 
 typedef struct {
   // descriptor ring
@@ -73,7 +90,7 @@ typedef struct {
   uint32_t feature_array_length;
   uint32_t (*config_load)(struct virtio_device *dev, uint32_t offset);
   void (*config_store)(struct virtio_device *dev, uint32_t offset, uint32_t val);
-  void (*process_command)(struct virtio_device *dev, struct virtio_desc_internal *chain, int chain_length, int queue, uint16_t start_idx);
+  void (*process_command)(struct virtio_device *dev, virtio_chain *chain, int queue, uint16_t start_idx);
 } virtio_device_type;
 
 struct virtio_device {
@@ -108,7 +125,7 @@ void virtio_mmio_store(void *dev, uint32_t offset, uint32_t val);
 uint32_t virtio_mmio_load(void *dev, uint32_t offset);
 
 void *cast_guest_ptr(void *image, uint32_t addr);
-void virtio_flag_completion(struct virtio_device *dev, struct virtio_desc_internal * chain, int queue, uint16_t start_idx, uint32_t written, bool need_lock);
+void virtio_flag_completion(struct virtio_device *dev, virtio_chain * chain, int queue, uint16_t start_idx, bool need_lock);
 void virtio_config_changed(struct virtio_device *dev, bool need_lock);
 struct virtio_device *virtio_input_create(void *ram_image, uint32_t base, bool mouse);
 struct virtio_device *virtio_blk_create(void *ram_image, uint32_t base);
@@ -116,3 +133,61 @@ struct virtio_device *virtio_snd_create(void *ram_image, uint32_t base);
 struct virtio_device *virtio_net_create(void *ram_image, uint32_t base);
 void virtio_add_dtb(struct virtio_device*, void *v_fdt);
 void hexdump_ram(void *ram_image, uint32_t addr, uint32_t len);
+void virtio_net_teardown(void);
+
+static inline void virtio_dump_chain(virtio_chain *chain) {
+  for (int i=0; i<chain->chain_length; i++) {
+    printf("link %d\n", i);
+    printf("  host ptr: %p\n", chain->chain[i].message);
+    printf("  len: %d\n", chain->chain[i].message_len);
+    printf("  flags: 0x%x\n", chain->chain[i].flags);
+  }
+}
+
+static inline void virtio_chain_zero(virtio_chain *chain, int bytes) {
+  assert(chain->readable_bytes == 0);
+  assert(bytes <= chain->writeable_bytes);
+
+  chain->bytes_written += bytes;
+  chain->writeable_bytes -= bytes;
+  while (bytes) {
+    int buf_size = chain->chain[chain->seek_chain].message_len;
+    int buf_remain = buf_size - chain->seek_bytes;
+    int len_min = MIN(bytes, buf_remain);
+    //printf("zeroing %d bytes at %d+%d\n", len_min, chain->seek_chain, chain->seek_bytes);
+    memset(chain->chain[chain->seek_chain].message + chain->seek_bytes, 0, len_min);
+    chain->seek_bytes += len_min;
+    bytes -= len_min;
+
+    if (chain->seek_bytes == chain->chain[chain->seek_chain].message_len) {
+      chain->seek_bytes = 0;
+      chain->seek_chain++;
+    }
+  }
+}
+
+static inline void virtio_chain_write(virtio_chain *chain, uint8_t *buf, int bytes) {
+  assert(chain->readable_bytes == 0);
+  assert(bytes <= chain->writeable_bytes);
+
+  chain->bytes_written += bytes;
+  chain->writeable_bytes -= bytes;
+  while (bytes) {
+    int buf_size = chain->chain[chain->seek_chain].message_len;
+    int buf_remain = buf_size - chain->seek_bytes;
+    int len_min = MIN(bytes, buf_remain);
+    memcpy(chain->chain[chain->seek_chain].message + chain->seek_bytes, buf, len_min);
+    buf += len_min;
+    chain->seek_bytes += len_min;
+    bytes -= len_min;
+
+    if (chain->seek_bytes == chain->chain[chain->seek_chain].message_len) {
+      chain->seek_bytes = 0;
+      chain->seek_chain++;
+    }
+  }
+}
+
+static inline void virtio_chain_read(virtio_chain *chain, uint8_t *buf, int bytes) {
+  assert(bytes <= chain->readable_bytes);
+}

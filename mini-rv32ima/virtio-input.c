@@ -21,7 +21,7 @@ static struct virtio_device *keyb, *mouse;
 struct input_queue {
   uint8_t *dest;
   struct virtio_device *dev;
-  struct virtio_desc_internal *chain;
+  virtio_chain *chain;
   int queue;
   uint16_t start_idx;
   struct input_queue *next;
@@ -42,6 +42,8 @@ static const struct virtio_input_absinfo abs_y = {
   .min = 0,
   .max = 480,
 };
+
+static void recenter(void);
 
 uint32_t virtio_input_config_load(struct virtio_device *dev, uint32_t offset) {
   //printf("input cfg ld 0x%x\n", offset);
@@ -141,15 +143,15 @@ void virtio_input_config_store(struct virtio_device *dev, uint32_t offset, uint3
   }
 }
 
-static void virtio_input_process_command(struct virtio_device *dev, struct virtio_desc_internal *chain, int chain_length, int queue, uint16_t start_idx) {
-  assert(chain_length == 1);
-  assert(chain[0].message_len == 8);
-  assert(chain[0].flags == 2);
+static void virtio_input_process_command(struct virtio_device *dev, virtio_chain *chain, int queue, uint16_t start_idx) {
+  assert(chain->chain_length == 1);
+  assert(chain->chain[0].message_len == 8);
+  assert(chain->chain[0].flags == 2);
   assert(queue == 0);
   virtio_input_instance *ctx = dev->type_context;
 
   struct input_queue *node = malloc(sizeof(struct input_queue));
-  node->dest = chain[0].message;
+  node->dest = chain->chain[0].message;
   node->dev = dev;
   node->chain = chain;
   node->queue = queue;
@@ -199,9 +201,9 @@ void send_event(virtio_input_instance *ctx, uint16_t type, uint16_t code, uint32
   evt->type = type;
   evt->code = code;
   evt->value = value;
-  virtio_flag_completion(node->dev, node->chain, node->queue, node->start_idx, 8, false);
+  node->chain->bytes_written = 8;
+  virtio_flag_completion(node->dev, node->chain, node->queue, node->start_idx, false);
   ctx->virtio_input_queue_head = node->next;
-  memset(node, 0xaa, sizeof(*node));
   free(node);
   ctx->virtio_queue_size--;
 }
