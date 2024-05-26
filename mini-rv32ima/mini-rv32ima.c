@@ -156,6 +156,7 @@ restart:
 				long dtblen = ftell( f );
 				fseek( f, 0, SEEK_SET );
 				dtb_ptr = ram_amt - dtblen - sizeof( struct MiniRV32IMAState );
+                                dtb_ptr &= ~7;
 				if( fread( ram_image + dtb_ptr, dtblen, 1, f ) != 1 )
 				{
 					fprintf( stderr, "Error: Could not open dtb \"%s\"\n", dtb_file_name );
@@ -168,6 +169,7 @@ restart:
 		{
 			// Load a default dtb.
 			dtb_ptr = ram_amt - sizeof(default64mbdtb) - sizeof( struct MiniRV32IMAState );
+                        dtb_ptr &= ~7;
 			memcpy( ram_image + dtb_ptr, default64mbdtb, sizeof( default64mbdtb ) );
 			if( kernel_command_line )
 			{
