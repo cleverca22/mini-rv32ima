@@ -69,21 +69,12 @@ let
     '';
     destination = "/etc/inittab";
   };
-  resolvconf = pkgs.writeTextFile {
-    name = "resolv.conf";
-    text = ''
-      nameserver 10.0.0.1
-      search localnet
-    '';
-    destination = "/etc/resolv.conf";
-  };
   myenv = pkgs.buildEnv {
     name = "myenv";
     paths = with pkgs; [
       myinit
       shrunkenBinaries
       inittab
-      resolvconf
     ];
   };
   myinitrd = pkgs.makeInitrd {

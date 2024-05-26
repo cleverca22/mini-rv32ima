@@ -18,6 +18,10 @@ static pthread_t reader;
 
 static const int mtu = 9000 + 1000;
 
+int network_get_fd(void) {
+  return tun_fd;
+}
+
 static void *read_thread(void *callback) {
   rx_callback cb = callback;
   uint8_t *buffer = malloc(mtu);

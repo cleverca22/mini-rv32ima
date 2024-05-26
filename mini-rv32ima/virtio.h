@@ -65,7 +65,7 @@ typedef struct {
   // size, 6 + (2 * items)
   // alignment, 2
   // written by guest, contains index of items in descriptor ring
-  uint32_t QueueDriverLow;
+  uint32_t QueueDriverLow;  // 0x90
   // used ring, contains index of descriptor ring items, upon completion
   // size, 6 + (8 * items)
   // alignment, 4

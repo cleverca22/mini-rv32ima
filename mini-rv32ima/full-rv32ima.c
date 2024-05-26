@@ -1,11 +1,14 @@
 // Copyright 2022 Charles Lohr, you may use this file or any portions herein under any of the BSD, MIT, or CC0 licenses.
 
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <assert.h>
+#include <poll.h>
 
 #include <libfdt.h>
 #include <pthread.h>
@@ -303,6 +306,17 @@ void patch_dtb(uint32_t dtb_ptr, bool enable_gfx, void **fb_virt_ptr, bool enabl
   }
 }
 
+static void print_internals(void) {
+  char buffer[1024];
+  uint64_t timer = ((uint64_t)core->timerh << 32) | core->timerl;
+  uint64_t timermatch = ((uint64_t)core->timermatchh << 32) | core->timermatchl;
+  snprintf(buffer, 1024, "timer: 0x%lx\nmatch: 0x%lx\ndelta: %ld\n", timer, timermatch, timermatch - timer);
+  CNFGPenX = 0;
+  CNFGPenY = 0;
+  CNFGColor( 0xffffff );
+  CNFGDrawText(buffer, 5);
+}
+
 int main( int argc, char ** argv ) {
   int i;
   long long instct = -1;
@@ -316,7 +330,7 @@ int main( int argc, char ** argv ) {
   const char *initrd_name = NULL;
   const char * dtb_file_name = 0;
   const bool enable_gfx = true;
-  const bool enable_virtio_blk = false;
+  const bool enable_virtio_blk = true;
   const bool enable_virtio_input = true;
   const char * kernel_command_line = "earlycon=pl011,0x10000000 console=tty1 console=ttyAMA0 no_hash_pointers ip=dhcp";
   void *fb_virt_ptr = NULL;
@@ -400,81 +414,78 @@ restart:
   }
 
   //mmio_add_handler(0x10000000, 0x100, uart_load, uart_store, NULL, "legacy uart");
-	CaptureKeyboardInput();
+  CaptureKeyboardInput();
 
-	core->pc = MINIRV32_RAM_IMAGE_OFFSET;
-	core->regs[10] = 0x00; //hart ID
-	core->regs[11] = dtb_ptr?(dtb_ptr):0; //dtb_pa (Must be valid pointer) (Should be pointer to dtb)
-	core->extraflags |= 3; // Machine-mode.
+  core->pc = MINIRV32_RAM_IMAGE_OFFSET;
+  core->regs[10] = 0x00; //hart ID
+  core->regs[11] = dtb_ptr?(dtb_ptr):0; //dtb_pa (Must be valid pointer) (Should be pointer to dtb)
+  core->extraflags |= 3; // Machine-mode.
 
-	// Image is loaded.
-	uint64_t rt;
-	uint64_t lastTime = (fixed_update)?0:(GetTimeMicroseconds()/time_divisor);
-	int instrs_per_flip = single_step?1:1024;
-        uint64_t lastflip = GetTimeMicroseconds();
-	for( rt = 0; rt < instct+1 || instct < 0; rt += instrs_per_flip )
-	{
-		uint64_t * this_ccount = ((uint64_t*)&core->cyclel);
-		uint32_t elapsedUs = 0;
-		if( fixed_update )
-			elapsedUs = *this_ccount / time_divisor - lastTime;
-		else
-			elapsedUs = GetTimeMicroseconds()/time_divisor - lastTime;
-		lastTime += elapsedUs;
+  // Image is loaded.
+  uint64_t rt;
+  uint64_t lastTime = (fixed_update)?0:(GetTimeMicroseconds()/time_divisor);
+  int instrs_per_flip = single_step?1:1024;
+  uint64_t lastflip = GetTimeMicroseconds(); // timestamp of last gfx flip
+  for( rt = 0; rt < instct+1 || instct < 0; rt += instrs_per_flip ) {
+    uint64_t * this_ccount = ((uint64_t*)&core->cyclel);
+    uint32_t elapsedUs = 0;
+    if( fixed_update ) {
+      elapsedUs = *this_ccount / time_divisor - lastTime;
+    } else {
+      elapsedUs = GetTimeMicroseconds()/time_divisor - lastTime;
+    }
+    lastTime += elapsedUs;
 
-		if( single_step )
-			DumpState( core, ram_image);
+    if( single_step ) {
+      DumpState( core, ram_image);
+    }
 
-                pthread_mutex_lock(&irq_mutex);
-		int ret = MiniRV32IMAStep( core, ram_image, 0, elapsedUs, instrs_per_flip ); // Execute upto 1024 cycles before breaking out.
-                pthread_mutex_unlock(&irq_mutex);
-		switch( ret )
-		{
-			case 0: break;
-			case 1:
-                          if( do_sleep ) {
-                            MiniSleep();
-                          }
-                          *this_ccount += instrs_per_flip;
-                          break;
-			case 3: instct = 0; break;
-			case 0x7777: goto restart;	//syscon code for restart
-			case 0x5555: //syscon code for power-off
-                        {
-                          printf( "POWEROFF@0x%08x%08x\n", core->cycleh, core->cyclel );
+    pthread_mutex_lock(&irq_mutex);
+    int ret = MiniRV32IMAStep( core, ram_image, 0, elapsedUs, instrs_per_flip ); // Execute upto 1024 cycles before breaking out.
+    pthread_mutex_unlock(&irq_mutex);
+    switch( ret ) {
+    case 0: break;
+    case 1:
+      if( do_sleep ) {
+        MiniSleep();
+      }
+      *this_ccount += instrs_per_flip;
+      break;
+    case 3: instct = 0; break;
+    case 0x7777: goto restart;	//syscon code for restart
+    case 0x5555: //syscon code for power-off
+    {
+      printf( "POWEROFF@0x%08x%08x\n", core->cycleh, core->cyclel );
 #ifdef WITH_NET
-                          virtio_net_teardown();
+      virtio_net_teardown();
 #endif
-                          return 0;
-                        }
-			default: printf( "Unknown failure\n" ); break;
-		}
-                if (enable_gfx) {
-                  uint64_t now = GetTimeMicroseconds();
-                  uint64_t sinceflip = now - lastflip;
-#ifdef CNFGHTTP
-                  if (sinceflip > 16666) {
-#else
-                  if (sinceflip > 16666) {
-#endif
-                    uint64_t start = GetTimeMicroseconds();
-                    CNFGBGColor = 0;
-                    CNFGClearFrame();
-                    CNFGBlitImage((uint32_t*)fb_virt_ptr, 0, 0, 640, 480);
-                    CNFGSwapBuffers();
-                    CNFGHandleInput();
-                    uint64_t end = GetTimeMicroseconds();
+      return 0;
+    }
+    default: printf( "Unknown failure\n" ); break;
+    }
+    if (enable_gfx) {
+      uint64_t now = GetTimeMicroseconds();
+      uint64_t sinceflip = now - lastflip;
+      if (sinceflip > 16666) {
+        uint64_t start = GetTimeMicroseconds();
+        CNFGBGColor = 0;
+        CNFGClearFrame();
+        CNFGBlitImage((uint32_t*)fb_virt_ptr, 0, 0, 640, 480);
+        if (true) print_internals();
+        if (!CNFGHandleInput()) break;
+        CNFGSwapBuffers();
+        uint64_t end = GetTimeMicroseconds();
 #if 0
-                    uint64_t spent = end - start;
-                    printf("spent %ld\n", spent);
+        uint64_t spent = end - start;
+        printf("spent %ld\n", spent);
 #endif
-                    lastflip = end;
-                  }
-                }
-                pl011_poll();
-                if (want_exit) break;
-	}
-        // virtio_dump_all();
+        lastflip = end;
+      }
+    }
+    pl011_poll();
+    if (want_exit) break;
+  }
+  //virtio_dump_all();
 
 #ifdef WITH_NET
   virtio_net_teardown();
@@ -565,9 +576,47 @@ static void ResetKeyboardInput(void)
 	tcsetattr(0, TCSANOW, &term);
 }
 
-static void MiniSleep(void)
-{
-	usleep(500);
+static void MiniSleep(void) {
+  uint64_t timer = ((uint64_t)core->timerh << 32) | core->timerl;
+  uint64_t timermatch = ((uint64_t)core->timermatchh << 32) | core->timermatchl;
+  uint64_t delta = timermatch - timer;
+  //printf("%d\n", delta);
+  struct pollfd fds[10];
+  int nfds = 0;
+  {
+    fds[nfds].fd = 0;
+    fds[nfds].events = POLLIN;
+    nfds++;
+  }
+#ifdef WITH_NET
+  {
+    fds[nfds].fd = network_get_fd();
+    fds[nfds].events = POLLIN;
+    nfds++;
+  }
+#endif
+#ifndef CNFGHTTP
+  {
+    fds[nfds].fd = ConnectionNumber(CNFGDisplay);
+    fds[nfds].events = POLLIN;
+    nfds++;
+  }
+#endif
+  struct timespec timeout;
+  timeout.tv_sec = delta / 1000000;
+  timeout.tv_nsec = delta % 1000000;
+  int ret = ppoll(fds, nfds, &timeout, NULL);
+  if (ret == 0) {
+    //puts("poll timeout");
+  } else {
+    //printf("%d readable\n", ret);
+    for (int i=0; i<nfds; i++) {
+      if (fds[i].revents) {
+        //printf("%d %d %d\n", i, fds[i].fd, fds[i].revents);
+      }
+    }
+  }
+  //usleep(delta);
 }
 
 static uint64_t GetTimeMicroseconds(void)

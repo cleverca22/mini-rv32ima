@@ -29,7 +29,7 @@ in
       ];
     });
   }) ];
-  #initrd.inittab = "ttyAMA0::respawn:poweroff";
+  #initrd.inittab = "ttyAMA0::once:${test}";
   kernel = {
     gfx = true;
     block = false;
@@ -37,5 +37,6 @@ in
   };
   initrd.postInit = ''
     cat /proc/net/pnp
+    grep nameserver /proc/net/pnp > /etc/resolv.conf
   '';
 }

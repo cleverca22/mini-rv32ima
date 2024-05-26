@@ -18,7 +18,6 @@ endif
 
 ifeq ($(LINUX),1)
   LIBS += -lasound
-  SRCS += network_tap.c
   INPUT ?= 1
   X11 ?= 1
   BLOCK ?= 1
@@ -37,6 +36,9 @@ endif
 
 ifeq ($(NET),1)
   SRCS += virtio-net.c
+  ifeq ($(LINUX),1)
+    SRCS += network_tap.c
+  endif
   CFLAGS += -DWITH_NET
 endif
 

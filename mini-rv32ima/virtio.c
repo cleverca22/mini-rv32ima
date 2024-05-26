@@ -98,6 +98,7 @@ again:
 void virtio_process_rings(struct virtio_device *dev) {
   int total_chains = 0;
   for (int queue=0; queue < dev->queue_count; queue++) {
+    assert(dev->queues[dev->QueueSel].QueueReady);
     virtio_desc *table = cast_guest_ptr(dev->ram_image, dev->queues[queue].QueueDescLow);
     virtio_available_ring *ring = cast_guest_ptr(dev->ram_image, dev->queues[queue].QueueDriverLow);
     //printf(RED"read ptr %d\n"DEFAULT, dev->queues[queue].read_ptr);
@@ -265,6 +266,7 @@ void virtio_mmio_store(void *state, uint32_t offset, uint32_t val) {
     break;
   case 0x90:
     dev->queues[dev->QueueSel].QueueDriverLow = val;
+    printf("virtio%d QueueDriverLow[%d] <- 0x%x\n", dev->index, dev->QueueSel, val);
     break;
   case 0x94: // QueueDriverHigh
     assert(val == 0);
