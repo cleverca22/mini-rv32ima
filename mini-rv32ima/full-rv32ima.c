@@ -8,7 +8,10 @@
 #include <string.h>
 #include <math.h>
 #include <assert.h>
+#if defined(WINDOWS) || defined(WIN32) || defined(_WIN32)
+#else
 #include <poll.h>
+#endif
 
 #include <libfdt.h>
 #include <pthread.h>
