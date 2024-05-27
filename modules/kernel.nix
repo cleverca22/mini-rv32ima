@@ -68,7 +68,8 @@ let
     GPIOLIB = no;
     HID_SUPPORT = no;
     HIGH_RES_TIMERS = no;
-    HZ_PERIODIC = yes;
+    TICK_ONESHOT = yes;
+    HZ_100 = yes;
     I2C = no;
     IIO = no;
     IKCONFIG = no;
@@ -97,7 +98,8 @@ let
     NET_NS = no;
     NLS = no;
     NONPORTABLE = yes;
-    NO_HZ_IDLE = no;
+    NO_HZ_IDLE = yes;
+    NO_HZ_COMMON = yes;
     NVMEM = no;
     PAGE_OFFSET = freeform "0x80000000";
     PAGE_REPORTING = no;
