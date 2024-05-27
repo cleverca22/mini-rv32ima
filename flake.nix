@@ -141,6 +141,9 @@
         $image/mini-rv32ima/full-rv32ima.http -f $image/mini-rv32ima/Image -i $image/mini-rv32ima/initrd | tee logfile
         dos2unix logfile
         grep ': Kernel' logfile | awk '{ split($1, a, "-"); start=strtonum("0x"a[1]); end=strtonum("0x"a[2]); print $4 " " (end-start)/1024 " kb"; }' >> $out/nix-support/hydra-metrics
+        for x in $image/mini-rv32ima/Image $image/mini-rv32ima/initrd; do
+          echo $(basename $x) $(stat --printf=%s $x | awk '{ print $1/1024; }') kb >> $out/nix-support/hydra-metrics
+        done
       '';
     in {
       fbdoom = mkImage [ ./configuration-fbdoom.nix ];
