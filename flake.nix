@@ -132,6 +132,7 @@
           {
             initrd.inittab = "ttyAMA0::once:${test}";
             kernel.fb_console = false;
+            kernel.gfx = false;
           }
         ];
       } ''
