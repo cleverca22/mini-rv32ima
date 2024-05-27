@@ -127,15 +127,20 @@
           poweroff
         '';
       in pkgs.runCommand "test" {
+        buildInputs = [ pkgs.dos2unix ];
         image = mkImage [
           {
             initrd.inittab = "ttyAMA0::once:${test}";
+            kernel.fb_console = false;
           }
         ];
       } ''
-        mkdir $out
+        mkdir -p $out/nix-support/
+        cd $out
         ls $image/mini-rv32ima
-        $image/mini-rv32ima/full-rv32ima.http -f $image/mini-rv32ima/Image -i $image/mini-rv32ima/initrd
+        $image/mini-rv32ima/full-rv32ima.http -f $image/mini-rv32ima/Image -i $image/mini-rv32ima/initrd | tee logfile
+        dos2unix logfile
+        grep ': Kernel' logfile | awk '{ split($1, a, "-"); start=strtonum("0x"a[1]); end=strtonum("0x"a[2]); print $4 " " (end-start)/1024 " kb"; }' >> $out/nix-support/hydra-metrics
       '';
     in {
       fbdoom = mkImage [ ./configuration-fbdoom.nix ];
