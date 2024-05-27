@@ -119,10 +119,17 @@
           #cat ../mini-rv32ima/initrd | cpio -i
         '';
       in output;
-      doTest = pkgs.runCommand "test" {
+      doTest = let
+        test = pkgs.writeScript "dotest" ''
+          #!/bin/sh
+          cat /proc/cpuinfo
+          cat /proc/iomem
+          poweroff
+        '';
+      in pkgs.runCommand "test" {
         image = mkImage [
           {
-            initrd.inittab = "ttyAMA0::respawn:poweroff";
+            initrd.inittab = "ttyAMA0::once:${test}";
           }
         ];
       } ''
