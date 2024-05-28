@@ -131,9 +131,8 @@
         image = mkImage [
           {
             initrd.inittab = "ttyAMA0::once:${test}";
-            kernel.fb_console = false;
-            kernel.gfx = false;
           }
+          minimal_cfg
         ];
       } ''
         mkdir -p $out/nix-support/
@@ -146,9 +145,18 @@
           echo $(basename $x) $(stat --printf=%s $x | awk '{ print $1/1024; }') kb >> $out/nix-support/hydra-metrics
         done
       '';
+      minimal_cfg = {
+        kernel = {
+          fb_console = false;
+          gfx = false;
+          network = false;
+          virtio = false;
+        };
+      };
     in {
       fbdoom = mkImage [ ./configuration-fbdoom.nix ];
       base = mkImage [ ];
+      tiny = mkImage [ minimal_cfg ];
       static-rv32ima = self.packages.${system}.static-rv32ima;
       windows-rv32ima = self.packages.${system}.windows-rv32ima;
       cnfa = self.packages.${system}.cnfa;
