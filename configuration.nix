@@ -31,9 +31,8 @@ in
   }) ];
   #initrd.inittab = "ttyAMA0::once:${test}";
   kernel = {
-    gfx = true;
-    block = false;
     gzip_initrd = false;
+    fb_console = false;
   };
   initrd.postInit = ''
     cat /proc/net/pnp
