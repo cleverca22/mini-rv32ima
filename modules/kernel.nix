@@ -60,8 +60,6 @@ let
     FONTS = yes;
     FONT_8x8 = no;
     FPU = no;
-    FRAMEBUFFER_CONSOLE = if cfg.fb_console then yes else no; # render text on fb0
-    FRAMEBUFFER_CONSOLE_DETECT_PRIMARY = yes;
     FW_LOADER = no;
     GENERIC_PCI_IOMAP = no;
     GENERIC_PHY = no;
@@ -170,6 +168,7 @@ let
     VM_EVENT_COUNTERS = no;
     WIRELESS = no;
     WLAN = no;
+    VT = no;
   };
   snd_cfg = with lib.kernel; {
     SND = yes;
@@ -184,6 +183,11 @@ let
   gfx_cfg = with lib.kernel; {
     FB = yes;
     FB_SIMPLE = yes; # simple-framebuffer
+  };
+  fb_console = with lib.kernel; {
+    FRAMEBUFFER_CONSOLE = yes;
+    FRAMEBUFFER_CONSOLE_DETECT_PRIMARY = yes;
+    VT = yes;
   };
   net_cfg = with lib.kernel; {
     VIRTIO_NET = yes;
@@ -214,6 +218,7 @@ let
     // lib.optionalAttrs cfg.block block_cfg
     // lib.optionalAttrs cfg.network net_cfg
     // lib.optionalAttrs cfg.snd snd_cfg
+    // lib.optionalAttrs cfg.fb_console fb_console
     ;
   };
 in {
