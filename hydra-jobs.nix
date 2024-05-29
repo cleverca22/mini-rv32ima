@@ -47,7 +47,7 @@ let
     tests.simple = doTest;
   };
   packages = {
-    inherit (self.packages.${system}) static-rv32ima windows-rv32ima cnfa qemu;
+    inherit (self.packages.${system}) static-rv32ima windows-rv32ima cnfa qemu curl nix;
   };
 in
   os-stuff // test-stuff // packages

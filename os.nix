@@ -1,8 +1,8 @@
 { lib
 , configuration ? ./configuration.nix
 , extraModules ? []
-, nixpkgs
-, hostSystem
+, path
+, system
 , libc ? "uclibc"
 }:
 
@@ -12,12 +12,11 @@ let
     musl = lib.systems.examples.riscv32-nommu-musl;
   };
   crossSystem = libcTable.${libc};
-  system = hostSystem;
   pkgsModule = {config, ... }: {
     _file = ./os.nix;
     key = ./os.nix;
     config = {
-      nixpkgs.pkgs = (import nixpkgs {
+      nixpkgs.pkgs = (import path {
         inherit system crossSystem;
         config = config.nixpkgs.config;
         overlays = config.nixpkgs.overlays;

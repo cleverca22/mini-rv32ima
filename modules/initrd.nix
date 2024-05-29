@@ -29,6 +29,7 @@ let
         chmod +w $x
         patchelf --set-interpreter $out/lib/$(basename $ldso) $x
         patchelf --set-rpath $out/lib $x
+        patchelf --shrink-rpath $x
       fi
     done
     ls -lh $out/lib
