@@ -53,4 +53,6 @@ let
     inherit (self.packages.${system}) static-rv32ima windows-rv32ima cnfa qemu curl nix;
   };
 in
-  os-stuff // test-stuff // packages
+  (if (builtins.elem system [ "x86_64-linux" ]) then os-stuff else {})
+  // (if (builtins.elem system [ "x86_64-linux" ]) then test-stuff else {})
+  // packages
