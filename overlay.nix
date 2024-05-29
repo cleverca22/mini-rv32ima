@@ -11,4 +11,17 @@ self: super: {
       hash = "sha256-D4hUu3DHk0CCpwDDf1wjn1CQXRlc4vhqZrqAOkLTvBU=";
     };
   });
+  openssl = super.openssl.overrideAttrs (old: {
+    # openssl-3.0.13/crypto/threads_pthread.c:272:(.text+0x33c): undefined reference to `__atomic_load_8'
+    NIX_LDFLAGS = [ "-latomic" ];
+  });
+  alsa-lib = super.alsa-lib.overrideAttrs (old: {
+    configureFlags = [
+      "--disable-mixer"
+      "--enable-static"
+      "--disable-shared"
+      "--with-pcm-plugins=copy,linear"
+      #"--help"
+    ];
+  });
 }

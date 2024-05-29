@@ -56,24 +56,13 @@ in
     #pkgs.evtest
     #pkgs.nix
   ];
-  nixpkgs.overlays = [ (self: super: {
-    ubootTools = null;
-    cnfa = self.callPackage ./cnfa.nix {};
-    openssl = super.openssl.overrideAttrs (old: {
-      # openssl-3.0.13/crypto/threads_pthread.c:272:(.text+0x33c): undefined reference to `__atomic_load_8'
-      NIX_LDFLAGS = [ "-latomic" ];
-    });
-    alsa-lib = super.alsa-lib.overrideAttrs (old: {
-      configureFlags = [
-        "--disable-mixer"
-        "--enable-static"
-        "--disable-shared"
-        "--with-pcm-plugins=copy,linear"
-        #"--help"
-      ];
-    });
-  }) ];
-  #initrd.inittab = "ttyAMA0::once:${test}";
+  nixpkgs.overlays = [
+    (self: super: {
+      ubootTools = null;
+    })
+    (import ./overlay.nix)
+  ];
+  initrd.inittab = "ttyAMA0::once:${test}";
   kernel = {
     gzip_initrd = false;
     fb_console = false;
