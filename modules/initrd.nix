@@ -15,13 +15,22 @@ let
       if [[ -f $x && ! -L $x ]]; then
         echo its a file $x
         ldso=$(patchelf --print-interpreter $x)
-        cp $ldso $out/lib
+        cp -d $ldso $out/lib
+        if [ -f $(dirname $ldso)/libc.so ]; then
+          cp -v $(dirname $ldso)/libc.so $out/lib/
+        fi
+        if [ -f $(dirname $ldso)/ld-uClibc-1.0.47.so ]; then
+          cp -v $(dirname $ldso)/ld-uClibc-1.0.47.so $out/lib/
+        fi
 
-        chmod +w $out/lib/$(basename $ldso)
+        if [ -f $out/lib/$(basename $ldso) ]; then
+          chmod +w $out/lib/$(basename $ldso)
+        fi
         chmod +w $x
         patchelf --set-interpreter $out/lib/$(basename $ldso) $x
       fi
     done
+    ls -lh $out/lib
   '';
   # from https://github.com/celun/celun/blob/f4e681b896aae165506b7963eb6ac6d6c032145f/pkgs/mkCpio/default.nix
   borrowedMkCpio = (import pkgs.path { system = pkgs.stdenv.buildPlatform.system; }).linux.overrideAttrs (attrs: {
@@ -53,6 +62,7 @@ let
 
       mkdir /mnt
       #getty -n -l /bin/sh 9600 /dev/ttyAMA0 &
+      ${lib.optionalString config.kernel.network "grep nameserver /proc/net/pnp > /etc/resolv.conf"}
       ${config.initrd.postInit}
 
       exec init
@@ -119,5 +129,6 @@ in
   };
   config = {
     system.build.initrd = myinitrd;
+    kernel.gfx = lib.mkIf config.initrd.shellOnTTY1 true;
   };
 }

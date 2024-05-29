@@ -3,6 +3,8 @@
 with lib;
 
 let
+  # COMMON_CLK=n shaves 24kb off, but RISCV doesnt allow this
+  # PROC_FS costs 116kb, but removal confuses getty
   cfg = config.kernel;
   base = with lib.kernel; {
     #CRYPTO = no;
@@ -80,6 +82,9 @@ let
     KALLSYMS = no;
     KEYS = no;
     LD_DEAD_CODE_DATA_ELIMINATION = yes;
+    CACHESTAT_SYSCALL = no;
+    RSEQ = no;
+    KCMP = no;
     LEGACY_PTYS = no;
     LSM = freeform "";
     MEMFD_CREATE = no;

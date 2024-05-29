@@ -1,12 +1,17 @@
 { lib
-, configuration ? import ./configuration.nix
+, configuration ? ./configuration.nix
 , extraModules ? []
 , nixpkgs
 , hostSystem
+, libc ? "uclibc"
 }:
 
 let
-  crossSystem = lib.systems.examples.riscv32-nommu;
+  libcTable = {
+    uclibc = lib.systems.examples.riscv32-nommu;
+    musl = lib.systems.examples.riscv32-nommu-musl;
+  };
+  crossSystem = libcTable.${libc};
   system = hostSystem;
   pkgsModule = {config, ... }: {
     _file = ./os.nix;

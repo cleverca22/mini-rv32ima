@@ -85,9 +85,9 @@
       });
     };
     hydraJobs = let
-      mkImage = extra:
+      mkImage = extra: libc:
       let
-        toplevel = (pkgs.callPackage ./os.nix { inherit nixpkgs; extraModules = extra; hostSystem = system; }).toplevel;
+        toplevel = (pkgs.callPackage ./os.nix { inherit libc nixpkgs; extraModules = extra; hostSystem = system; }).toplevel;
         output = pkgs.runCommand "build" {
           nativeBuildInputs = [ pkgs.zip pkgs.cpio ];
           passAsFile = [ "script" ];
@@ -133,7 +133,7 @@
             initrd.inittab = "ttyAMA0::once:${test}";
           }
           minimal_cfg
-        ];
+        ] "uclibc";
       } ''
         mkdir -p $out/nix-support/
         cd $out
@@ -152,11 +152,13 @@
           network = false;
           virtio = false;
         };
+        initrd.shellOnTTY1 = false;
       };
     in {
-      fbdoom = mkImage [ ./configuration-fbdoom.nix ];
-      base = mkImage [ ];
-      tiny = mkImage [ minimal_cfg ];
+      fbdoom = mkImage [ ./configuration-fbdoom.nix ] "uclibc";
+      base = mkImage [ ] "uclibc";
+      tiny = mkImage [ minimal_cfg ] "uclibc";
+      tiny-musl = mkImage [ minimal_cfg ] "musl";
       static-rv32ima = self.packages.${system}.static-rv32ima;
       windows-rv32ima = self.packages.${system}.windows-rv32ima;
       cnfa = self.packages.${system}.cnfa;

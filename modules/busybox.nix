@@ -5,7 +5,10 @@ let
     enableMinimal = true;
     extraConfig = ''
       # CONFIG_SH_IS_HUSH y
+      CONFIG_ASH n
       CONFIG_CAT y
+      CONFIG_CP y
+      CONFIG_CRC32 y
       CONFIG_DF y
       CONFIG_DHCPRELAY n
       CONFIG_DMESG y
@@ -17,6 +20,7 @@ let
       CONFIG_FEATURE_EDITING_HISTORY 32
       CONFIG_FEATURE_EDITING_MAX_LEN 1024
       CONFIG_FEATURE_USE_INITTAB y
+      CONFIG_GETTY y
       CONFIG_GREP y
       CONFIG_HEAD y
       CONFIG_HUSH y
@@ -25,34 +29,35 @@ let
       CONFIG_INIT y
       CONFIG_LN y
       CONFIG_LS y
+      CONFIG_MKDIR y
       CONFIG_MKNOD y
       CONFIG_MKTEMP n
-      CONFIG_PS y
       CONFIG_MOUNT y
+      CONFIG_MV y
+      CONFIG_NOMMU y
+      CONFIG_PIE y
       CONFIG_PING n
       CONFIG_PING6 n
       CONFIG_POWEROFF y
+      CONFIG_PS y
       CONFIG_REBOOT y
       CONFIG_SHELL_HUSH y
       CONFIG_SH_IS_NONE n
       CONFIG_SLEEP y
       CONFIG_SORT y
       CONFIG_TAIL y
+      CONFIG_TIME y
+      CONFIG_TOUCH y
       CONFIG_TRACEROUTE n
       CONFIG_TRACEROUTE6 n
       CONFIG_TTY y
       CONFIG_UDHCPC n
-      CONFIG_UNAME y
       CONFIG_UDHCPC6 n
       CONFIG_UDHCPD n
+      CONFIG_UMOUNT y
+      CONFIG_UNAME y
       CONFIG_WC y
       CONFIG_XXD y
-      CONFIG_MKDIR y
-      CONFIG_TOUCH y
-      CONFIG_UMOUNT y
-      CONFIG_GETTY y
-      CONFIG_TIME y
-      CONFIG_CRC32 y
     '' + (lib.optionalString cfg.free ''
       CONFIG_FREE y
     '')
