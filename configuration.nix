@@ -54,7 +54,6 @@ in
     (pkgs.callPackage ./fbtest {})
     foo
     #pkgs.evtest
-    pkgs.curl
     #pkgs.nix
   ];
   nixpkgs.overlays = [ (self: super: {
