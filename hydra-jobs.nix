@@ -26,12 +26,15 @@ let
     '';
   in pkgs.runCommand "test" {
     buildInputs = [ pkgs.dos2unix ];
-    image = mkImage [
-      {
-        initrd.inittab = "ttyAMA0::once:${test}";
-      }
-      minimal_cfg
-    ] "uclibc";
+    image = mkImage {
+      extraModules = [
+        {
+          initrd.inittab = "ttyAMA0::once:${test}";
+        }
+        minimal_cfg
+      ];
+      libc = "uclibc";
+    };
   } ''
     mkdir -p $out/nix-support/
     cd $out
