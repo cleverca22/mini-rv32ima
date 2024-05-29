@@ -10,12 +10,26 @@
       inherit self;
     };
   in
-  (utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
+  (utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" "riscv32-nommu" "riscv32-nommu-musl" ] (system:
   let
-    pkgs = import nixpkgs {
-      inherit system; overlays = [ overlay (import ./overlay.nix) ];
+    hostLut = {
+      "x86_64-linux" = "x86_64-linux";
+      "aarch64-linux" = "aarch64-linux";
+      "riscv32-nommu" = "x86_64-linux";
+      "riscv32-nommu-musl" = "x86_64-linux";
+    };
+    pkgs_ = import nixpkgs {
+      system = hostLut.${system};
+      overlays = [ overlay (import ./overlay.nix) ];
       config.allowUnsupportedSystem = true;
     };
+    targetLut = {
+      "x86_64-linux" = x: x;
+      "aarch64-linux" = x: x;
+      "riscv32-nommu" = x: x.pkgsCross.riscv32-nommu;
+      "riscv32-nommu-musl" = x: x.pkgsCross.riscv32-nommu-musl;
+    };
+    pkgs = targetLut.${system} pkgs_;
     mkDoTest = http: extra:
     let
       os = pkgs.callPackage ./os.nix { inherit nixpkgs; extraModules = extra; hostSystem = system; };
