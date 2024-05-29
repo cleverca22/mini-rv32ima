@@ -25,6 +25,7 @@ let
       #define _GNU_SOURCE
       #include <stdio.h>
       #include <sched.h>
+      #include <sys/wait.h>
 
       int main(int argc, char **argv) {
         int ret = clone(0, 0, SIGCHLD, 0);
@@ -49,10 +50,11 @@ in
   initrd.packages = [
     (pkgs.callPackage ./evtest.nix {})
     (pkgs.callPackage ./fbtest {})
+    foo
     #pkgs.evtest
     #pkgs.curl
     #pkgs.nix
-  ] ++ lib.optional (pkgs.stdenv.hostPlatform.libc == "musl") foo;
+  ];
   nixpkgs.overlays = [ (self: super: {
     ubootTools = null;
     cnfa = self.callPackage ./cnfa.nix {};
