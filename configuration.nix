@@ -42,6 +42,8 @@ let
     cp $clonePath clone.c
     ${lib.optionalString (pkgs.stdenv.hostPlatform.libc == "musl") "$CC fork.c -o $out/bin/fork"}
     $CC clone.c -o $out/bin/clone
+
+    fixupPhase
   '';
 in
 {
