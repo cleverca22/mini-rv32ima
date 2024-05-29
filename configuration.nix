@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 
 let
   test = pkgs.writeScript "dotest" ''
@@ -39,7 +39,7 @@ let
     mkdir -pv $out/bin/
     cp $forkPath fork.c
     cp $clonePath clone.c
-    $CC fork.c -o $out/bin/fork
+    ${lib.optionalString (pkgs.stdenv.hostPlatform.libc == "musl") "$CC fork.c -o $out/bin/fork"}
     $CC clone.c -o $out/bin/clone
   '';
 in
@@ -51,9 +51,8 @@ in
     (pkgs.callPackage ./fbtest {})
     #pkgs.evtest
     #pkgs.curl
-    foo
     #pkgs.nix
-  ];
+  ] ++ lib.optional (pkgs.stdenv.hostPlatform.libc == "musl") foo;
   nixpkgs.overlays = [ (self: super: {
     ubootTools = null;
     cnfa = self.callPackage ./cnfa.nix {};
