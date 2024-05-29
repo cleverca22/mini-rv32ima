@@ -6,9 +6,7 @@
   };
   outputs = { self, utils, nixpkgs }:
   let
-    overlay = self: super: let
-      lib = self.lib;
-    in {
+    overlay = _: _: {
       inherit self;
     };
   in
