@@ -1,0 +1,12 @@
+diff --git a/hw/core/machine.c b/hw/core/machine.c
+index 8087026b45..cfc40593c1 100644
+--- a/hw/core/machine.c
++++ b/hw/core/machine.c
+@@ -153,6 +153,7 @@ GlobalProperty hw_compat_4_2[] = {
+     { "qxl-vga", "revision", "4" },
+     { "fw_cfg", "acpi-mr-restore", "false" },
+     { "virtio-device", "use-disabled-flag", "false" },
++    { "virtio-mmio", "force-legacy", "false" },
+ };
+ const size_t hw_compat_4_2_len = G_N_ELEMENTS(hw_compat_4_2);
+ 

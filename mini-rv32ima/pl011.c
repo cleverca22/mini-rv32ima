@@ -10,6 +10,7 @@
 static int uart_irq;
 uint32_t irq_status = 0;
 uint32_t irq_mask = 0;
+static uint32_t uart_cr = 0;
 
 static void pl011_maybe_irq(void) {
   if (irq_status & irq_mask) {
@@ -40,6 +41,9 @@ static uint32_t pl011_load(void *state, uint32_t addr) {
     if (!IsKBHit()) ret |= 1<<4; // rx fifo empty
     ret |= 1<<7; // tx fifo empty
     break;
+  case 0x30: // CR
+    ret = uart_cr;
+    break;
   case 0x3c: // irq status
     ret = irq_status;
     break;
@@ -57,6 +61,9 @@ static void pl011_store(void *state, uint32_t addr, uint32_t val) {
   case 0: // data reg
     printf("%c", val);
     fflush( stdout );
+    break;
+  case 0x30: // CR
+    uart_cr = val;
     break;
   case 0x38: // uart interrupt mask
     irq_mask = val;
