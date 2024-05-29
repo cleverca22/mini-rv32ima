@@ -28,6 +28,7 @@ let
         fi
         chmod +w $x
         patchelf --set-interpreter $out/lib/$(basename $ldso) $x
+        patchelf --set-rpath $out/lib $x
       fi
     done
     ls -lh $out/lib
@@ -129,6 +130,7 @@ in
   };
   config = {
     system.build.initrd = myinitrd;
+    system.build.shrunkenBinaries = shrunkenBinaries;
     kernel.gfx = lib.mkIf config.initrd.shellOnTTY1 true;
   };
 }
