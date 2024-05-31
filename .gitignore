@@ -1,0 +1,3 @@
+*.o
+*.swp
+lk/build-mini-rv32ima

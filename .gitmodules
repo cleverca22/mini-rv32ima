@@ -1,0 +1,3 @@
+[submodule "lk/lk"]
+	path = lk/lk
+	url = https://github.com/littlekernel/lk
