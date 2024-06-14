@@ -11,21 +11,21 @@
 #include "plic.h"
 #include "rawdraw_sf.h"
 
-typedef struct {
-  struct input_queue *virtio_input_queue_head;
-  int virtio_queue_size;
-} virtio_input_instance;
-
 static struct virtio_device *keyb, *mouse;
 
-struct input_queue {
+typedef struct input_queue {
   uint8_t *dest;
   struct virtio_device *dev;
   virtio_chain *chain;
   int queue;
   uint16_t start_idx;
   struct input_queue *next;
-};
+} input_queue_t;
+
+typedef struct {
+  input_queue_t *virtio_input_queue_head;
+  int virtio_queue_size;
+} virtio_input_instance;
 
 static bool relative_mode = false;
 static int width = 640;
@@ -150,7 +150,7 @@ static void virtio_input_process_command(struct virtio_device *dev, virtio_chain
   assert(queue == 0);
   virtio_input_instance *ctx = dev->type_context;
 
-  struct input_queue *node = malloc(sizeof(struct input_queue));
+  input_queue_t *node = malloc(sizeof(input_queue_t));
   node->dest = chain->chain[0].message;
   node->dev = dev;
   node->chain = chain;
@@ -159,7 +159,7 @@ static void virtio_input_process_command(struct virtio_device *dev, virtio_chain
   node->next = NULL;
 
   if (ctx->virtio_input_queue_head) {
-    struct input_queue *tail = ctx->virtio_input_queue_head;
+    input_queue_t *tail = ctx->virtio_input_queue_head;
     //printf("initial tail %d -> %p", ctx->virtio_queue_size, tail);
     int l = 0;
     while (tail->next) {
@@ -177,7 +177,7 @@ static void virtio_input_process_command(struct virtio_device *dev, virtio_chain
 
 void send_event(virtio_input_instance *ctx, uint16_t type, uint16_t code, uint32_t value) {
   //printf("send_event %d\n", virtio_queue_size);
-  struct input_queue *node = ctx->virtio_input_queue_head;
+  input_queue_t *node = ctx->virtio_input_queue_head;
   if (!node) {
     char *type_str = NULL;
     switch (type) {
