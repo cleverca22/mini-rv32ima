@@ -210,6 +210,9 @@ void I_InitGraphics (void)
         fb_scaling = fb.xres / SCREENWIDTH;
         if (fb.yres / SCREENHEIGHT < fb_scaling)
             fb_scaling = fb.yres / SCREENHEIGHT;
+
+        if (fb_scaling <= 0) fb_scaling = 1;
+
         printf("I_InitGraphics: Auto-scaling factor: %d\n", fb_scaling);
     }
 
@@ -462,9 +465,16 @@ void I_FinishUpdate (void)
     /* 600 = fb heigt, 200 screenheight */
     /* 2048 =fb width, 320 screenwidth */
     y_offset     = (((fb.yres - (SCREENHEIGHT * fb_scaling)) * fb.bits_per_pixel/8)) / 2;
-    x_offset     = (((fb.xres - (SCREENWIDTH  * fb_scaling)) * fb.bits_per_pixel/8)) / 2; // XXX: siglent FB hack: /4 instead of /2, since it seems to handle the resolution in a funny way
-    //x_offset     = 0;
-    x_offset_end = ((fb.xres - (SCREENWIDTH  * fb_scaling)) * fb.bits_per_pixel/8) - x_offset;
+    int w;
+    if ((SCREENWIDTH  * fb_scaling) <= fb.xres) {
+      x_offset     = (((fb.xres - (SCREENWIDTH  * fb_scaling)) * fb.bits_per_pixel/8)) / 2;
+      x_offset_end = ((fb.xres - (SCREENWIDTH  * fb_scaling)) * fb.bits_per_pixel/8) - x_offset;
+      w = SCREENWIDTH;
+    } else {
+      x_offset     = 0;
+      x_offset_end = 0;
+      w = fb.xres;
+    }
 
     /* DRAW SCREEN */
     line_in  = (unsigned char *) I_VideoBuffer;
@@ -472,8 +482,7 @@ void I_FinishUpdate (void)
 
     y = SCREENHEIGHT;
 
-    while (y--)
-    {
+    while (y--) {
         int i;
         for (i = 0; i < fb_scaling; i++) {
             line_out += x_offset;
@@ -485,9 +494,9 @@ void I_FinishUpdate (void)
             }
 #else
             //cmap_to_rgb565((void*)line_out, (void*)line_in, SCREENWIDTH);
-            cmap_to_fb((void*)line_out, (void*)line_in, SCREENWIDTH);
+            cmap_to_fb((void*)line_out, (void*)line_in, w);
 #endif
-            line_out += (SCREENWIDTH * fb_scaling * (fb.bits_per_pixel/8)) + x_offset_end;
+            line_out += (w * fb_scaling * (fb.bits_per_pixel/8)) + x_offset_end;
         }
         line_in += SCREENWIDTH;
     }
