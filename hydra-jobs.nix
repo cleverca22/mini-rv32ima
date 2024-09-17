@@ -50,7 +50,9 @@ let
     tests.simple = doTest;
   };
   packages = {
-    inherit (self.packages.${system}) static-rv32ima windows-rv32ima cnfa qemu curl nix python3;
+    inherit (self.packages.${system}) static-rv32ima windows-rv32ima cnfa curl nix python3;
+  } // pkgs.lib.optional (!self.packages.${system}.stdenv.targetPlatform.isRiscV) {
+    inherit (self.packages.${system}) qemu;
   };
 in
   (if (builtins.elem system [ "x86_64-linux" ]) then os-stuff else {})
