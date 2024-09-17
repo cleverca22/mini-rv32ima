@@ -51,7 +51,7 @@ let
   };
   packages = {
     inherit (self.packages.${system}) static-rv32ima windows-rv32ima cnfa curl nix python3;
-  } // pkgs.lib.optional (!self.packages.${system}.stdenv.targetPlatform.isRiscV) {
+  } // pkgs.lib.optionalAttrs (!self.packages.${system}.stdenv.targetPlatform.isRiscV) {
     inherit (self.packages.${system}) qemu;
   };
 in
