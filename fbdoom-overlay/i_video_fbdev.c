@@ -441,7 +441,7 @@ void updateMetrics(uint32_t scaleconvert, uint32_t tofb) {
     time = time / (1000 * 1000);
     float fps = frames / time;
 
-    printf("%d %d fps:%d\n", scaletime/frames, fbtime/frames, (uint32_t)fps);
+    //printf("%d %d fps:%d\n", scaletime/frames, fbtime/frames, (uint32_t)fps);
     frames = 0;
     scaletime = 0;
     fbtime = 0;
