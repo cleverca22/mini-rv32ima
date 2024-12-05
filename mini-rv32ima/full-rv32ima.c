@@ -144,6 +144,8 @@ void load_kernel(const char *image_file_name) {
     fprintf( stderr, "Error: Could not fit RAM image (%ld bytes) into %d\n", flen, ram_amt );
     exit(-6);
   }
+  // TODO, this 512kb of space for .bss could be too small
+  // you should read the 64bit int from 16 bytes into the file, to know the total size
   uint32_t kernel_base = guest_alloc(flen + (512*1024), "KERNEL");
   void *kernel_ptr = cast_guest_ptr(ram_image, kernel_base);
   if( fread(kernel_ptr, flen, 1, f ) != 1) {
@@ -335,7 +337,7 @@ int main( int argc, char ** argv ) {
   const bool enable_gfx = true;
   const bool enable_virtio_blk = true;
   const bool enable_virtio_input = true;
-  const char * kernel_command_line = "earlycon=pl011,0x10000000 console=tty1 console=ttyAMA0 no_hash_pointers ip=dhcp";
+  const char * kernel_command_line = "earlycon=pl011,0x10000000 console=tty1 console=ttyAMA0 no_hash_pointers";
   void *fb_virt_ptr = NULL;
 
   for( i = 1; i < argc; i++ ) {
@@ -493,8 +495,20 @@ restart:
 #ifdef WITH_NET
   virtio_net_teardown();
 #endif
+
+#ifdef WITH_COREDUMP
   DumpState( core, ram_image);
   printf("opcodes: 0x%x 0x%x\n", core->cycleh, core->cyclel);
+
+  int fd = open("core.bin", O_RDWR | O_CREAT, 0666);
+  assert(fd >= 0);
+  int ret = write(fd, ram_image, ram_amt);
+  if (ret == -1) {
+    perror("cant save coredump");
+  }
+  close(fd);
+#endif
+
   free(ram_image);
 
   if (want_exit) return 1;

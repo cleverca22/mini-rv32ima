@@ -10,13 +10,14 @@
       inherit self;
     };
   in
-  (utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" "riscv32-nommu" "riscv32-nommu-musl" ] (system:
+  (utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" "riscv32-nommu" "riscv32-nommu-musl" "x86_64-windows" ] (system:
   let
     hostLut = {
       "x86_64-linux" = "x86_64-linux";
       "aarch64-linux" = "aarch64-linux";
       "riscv32-nommu" = "x86_64-linux";
       "riscv32-nommu-musl" = "x86_64-linux";
+      "x86_64-windows" = "x86_64-linux";
     };
     pkgs_ = import nixpkgs {
       system = hostLut.${system};
@@ -28,11 +29,12 @@
       "aarch64-linux" = x: x;
       "riscv32-nommu" = x: x.pkgsCross.riscv32-nommu;
       "riscv32-nommu-musl" = x: x.pkgsCross.riscv32-nommu-musl;
+      "x86_64-windows" = x: x.pkgsCross.mingwW64;
     };
     pkgs = targetLut.${system} pkgs_;
     mkDoTest = http: extra:
     let
-      os = pkgs.callPackage ./os.nix { inherit nixpkgs; extraModules = extra; hostSystem = system; };
+      os = pkgs.callPackage ./os.nix { extraModules = extra; };
     in
       pkgs.writeShellScriptBin "dotest" ''
         ${pkgs.mini-rv32ima.override { inherit http; }}/bin/full-rv32ima -f ${os.toplevel}/Image -i ${os.toplevel}/initrd
