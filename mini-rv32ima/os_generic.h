@@ -108,21 +108,21 @@ extern "C" {
 
 OSG_PREFIX void OGSleep( int is );
 OSG_PREFIX void OGUSleep( int ius );
-OSG_PREFIX double OGGetAbsoluteTime();
+OSG_PREFIX double OGGetAbsoluteTime(void);
 OSG_PREFIX double OGGetFileTime( const char * file );
 OSG_PREFIX og_thread_t OGCreateThread( void * (routine)( void * ), void * parameter );
 OSG_PREFIX void * OGJoinThread( og_thread_t ot );
 OSG_PREFIX void OGCancelThread( og_thread_t ot );
-OSG_PREFIX og_mutex_t OGCreateMutex();
+OSG_PREFIX og_mutex_t OGCreateMutex(void);
 OSG_PREFIX void OGLockMutex( og_mutex_t om );
 OSG_PREFIX void OGUnlockMutex( og_mutex_t om );
 OSG_PREFIX void OGDeleteMutex( og_mutex_t om );
-OSG_PREFIX og_sema_t OGCreateSema();
+OSG_PREFIX og_sema_t OGCreateSema(void);
 OSG_PREFIX int OGGetSema( og_sema_t os );
 OSG_PREFIX void OGLockSema( og_sema_t os );
 OSG_PREFIX void OGUnlockSema( og_sema_t os );
 OSG_PREFIX void OGDeleteSema( og_sema_t os );
-OSG_PREFIX og_tls_t OGCreateTLS();
+OSG_PREFIX og_tls_t OGCreateTLS(void);
 OSG_PREFIX void OGDeleteTLS( og_tls_t key );
 OSG_PREFIX void * OGGetTLS( og_tls_t key );
 OSG_PREFIX void OGSetTLS( og_tls_t key, void * data );
@@ -158,7 +158,7 @@ OSG_PREFIX void OGUSleep( int ius )
 	Sleep( ius/1000 );
 }
 
-OSG_PREFIX double OGGetAbsoluteTime()
+OSG_PREFIX double OGGetAbsoluteTime(void)
 {
 	static LARGE_INTEGER lpf;
 	LARGE_INTEGER li;
@@ -210,7 +210,7 @@ OSG_PREFIX void OGCancelThread( og_thread_t ot )
 	CloseHandle( ot );	
 }
 
-OSG_PREFIX og_mutex_t OGCreateMutex()
+OSG_PREFIX og_mutex_t OGCreateMutex(void)
 {
 	return CreateMutex( 0, 0, 0 );
 }
@@ -232,7 +232,7 @@ OSG_PREFIX void OGDeleteMutex( og_mutex_t om )
 
 
 
-OSG_PREFIX og_sema_t OGCreateSema()
+OSG_PREFIX og_sema_t OGCreateSema(void)
 {
 	HANDLE sem = CreateSemaphore( 0, 0, 32767, 0 );
 	return (og_sema_t)sem;

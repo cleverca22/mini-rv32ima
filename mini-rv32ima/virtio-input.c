@@ -310,7 +310,7 @@ static const virtio_device_type virtio_input_type = {
 struct virtio_device *virtio_input_create(void *ram_image, uint32_t base, bool mouse_mode) {
   struct virtio_device *dev = virtio_create(ram_image, &virtio_input_type, base, 0x200, get_next_irq());
   virtio_input_instance *ctx = malloc(sizeof(virtio_input_instance));
-  bzero(ctx, sizeof(virtio_input_instance));
+  memset(ctx, 0, sizeof(virtio_input_instance));
   dev->type_context = ctx;
 
   if (mouse_mode) {

@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "plic.h"
-#include <pthread.h>
+#include "os_generic.h"
 
 #define CONTEXT_BASE                    0x200000
 #define     CONTEXT_SIZE                0x1000
@@ -12,7 +12,11 @@ static uint32_t irq_pending = 0;
 static uint32_t irq_claimed = 0;
 
 int next_irq = 1;
-static pthread_mutex_t irq_mutex = PTHREAD_MUTEX_INITIALIZER;
+static og_mutex_t irq_mutex = NULL;
+
+void plic_init(void) {
+  irq_mutex = OGCreateMutex();
+}
 
 uint32_t plic_load(void* state, uint32_t addr) {
   uint32_t ret = 0;
@@ -48,17 +52,17 @@ void plic_store(void *state, uint32_t addr, uint32_t val) {
 }
 
 void plic_raise_irq(int irq, bool need_lock) {
-  if (need_lock) pthread_mutex_lock(&irq_mutex);
+  if (need_lock) OGLockMutex(irq_mutex);
   irq_pending |= 1<<irq;
   uint32_t unmasked_pending_irq = (irq_mask & irq_pending) & ~irq_claimed;
   if (unmasked_pending_irq) hart_raise_irq(11, need_lock);
-  if (need_lock) pthread_mutex_unlock(&irq_mutex);
+  if (need_lock) OGUnlockMutex(irq_mutex);
 }
 
 void plic_clear_irq(int irq, bool need_lock) {
-  if (need_lock) pthread_mutex_lock(&irq_mutex);
+  if (need_lock) OGLockMutex(irq_mutex);
   irq_pending &= ~(1<<irq);
   uint32_t unmasked_pending_irq = (irq_mask & irq_pending) & ~irq_claimed;
   if (unmasked_pending_irq == 0) hart_clear_irq(11, need_lock);
-  if (need_lock) pthread_mutex_unlock(&irq_mutex);
+  if (need_lock) OGUnlockMutex(irq_mutex);
 }

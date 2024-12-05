@@ -3761,7 +3761,7 @@ void InternalHandleResize()
 }
 #else
 static short CNFGBufferx, CNFGBuffery;
-static void InternalHandleResize();
+static void InternalHandleResize(void);
 #endif
 
 
@@ -3874,7 +3874,7 @@ void CNFGUpdateScreenWithBitmap( uint32_t * data, int w, int h )
 }
 #endif
 
-void CNFGTearDown()
+void CNFGTearDown(void)
 {
 	PostQuitMessage(0);
 	ShouldClose = 1;

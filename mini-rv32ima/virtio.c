@@ -13,7 +13,7 @@ static int virtio_count = 0;
 struct virtio_device *virtio_create(void *ram_image, const virtio_device_type *type, uint32_t base, uint32_t size, int irq) {
   int queues = type->queue_count;
   struct virtio_device *dev = malloc(sizeof(struct virtio_device));
-  bzero(dev, sizeof(struct virtio_device));
+  memset(dev, 0, sizeof(struct virtio_device));
   dev->index = virtio_count;
   dev->type = type;
   dev->reg_base = base;
@@ -45,7 +45,7 @@ void hexdump_ram(void *ram_image, uint32_t addr, uint32_t len) {
 }
 
 static void virtio_dump_desc(struct virtio_device *dev, const virtio_desc *desc) {
-  printf("\taddr: 0x%lx\n", desc->addr);
+  printf("\taddr: 0x%llx\n", desc->addr);
   printf("\tlen: %d\n", desc->len);
   printf("\tflags: 0x%x\n", desc->flags);
   if (desc->flags & 1) puts("\t\tVIRTQ_DESC_F_NEXT");

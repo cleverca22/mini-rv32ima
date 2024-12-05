@@ -40,7 +40,6 @@ int fail_on_all_faults = 0;
 
 static int64_t SimpleReadNumberInt( const char * number, int64_t defaultNumber );
 static uint64_t GetTimeMicroseconds(void);
-static void ResetKeyboardInput(void);
 static void CaptureKeyboardInput(void);
 static uint32_t HandleException( uint32_t ir, uint32_t retval );
 static uint32_t HandleControlStore( uint32_t addy, uint32_t val );
@@ -48,8 +47,6 @@ static uint32_t HandleControlLoad( uint32_t addy );
 static void HandleOtherCSRWrite( uint8_t * image, uint16_t csrno, uint32_t value );
 static int32_t HandleOtherCSRRead( uint8_t * image, uint16_t csrno );
 static void MiniSleep(void);
-static uint32_t uart_load(void *state, uint32_t addr);
-static void uart_store(void *state, uint32_t addr, uint32_t val);
 
 // This is the functionality we want to override in the emulator.
 //  think of this as the way the emulator's processor is connected to the outside world.
@@ -239,6 +236,7 @@ void patch_dtb(uint32_t dtb_ptr, bool enable_gfx, void **fb_virt_ptr, bool enabl
   }
   if (enable_gfx) patch_dtb_gfx(v_fdt, fb_virt_ptr);
   {
+    plic_init();
     int soc = fdt_path_offset(v_fdt, "/soc");
     int plic = fdt_add_subnode(v_fdt, soc, "plic");
     fdt_setprop_string(v_fdt, plic, "status", "okay");
@@ -315,7 +313,8 @@ static void print_internals(void) {
   char buffer[1024];
   uint64_t timer = ((uint64_t)core->timerh << 32) | core->timerl;
   uint64_t timermatch = ((uint64_t)core->timermatchh << 32) | core->timermatchl;
-  snprintf(buffer, 1024, "timer: 0x%lx\nmatch: 0x%lx\ndelta: %ld\n", timer, timermatch, timermatch - timer);
+  float delta = timermatch - timer;
+  snprintf(buffer, 1024, "timer: 0x%llx\nmatch: 0x%llx\ndelta: %f sec\n", timer, timermatch, delta/1000/1000);
   CNFGPenX = 0;
   CNFGPenY = 0;
   CNFGColor( 0xffffff );
@@ -534,10 +533,6 @@ static void CaptureKeyboardInput()
 	system(""); // Poorly documented tick: Enable VT100 Windows mode.
 }
 
-static void ResetKeyboardInput()
-{
-}
-
 static void MiniSleep()
 {
 	Sleep(1);
@@ -559,6 +554,8 @@ static uint64_t GetTimeMicroseconds()
 
 
 #else
+
+static void ResetKeyboardInput(void);
 
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -661,29 +658,6 @@ static uint32_t HandleException( uint32_t ir, uint32_t code )
 	return code;
 }
 
-// Emulating a 8250 / 16550 UART
-static uint32_t uart_load(void *state, uint32_t addr) {
-  uint32_t ret = 0;
-  switch (addr) {
-  case 0:
-    if (IsKBHit()) ret = ReadKBByte();
-    break;
-  case 5:
-    ret = 0x60 | IsKBHit();
-    break;
-  }
-  return ret;
-}
-
-static void uart_store(void *state, uint32_t addr, uint32_t val) {
-  switch (addr) {
-  case 0: //UART 8250 / 16550 Data Buffer
-    printf("%c", val);
-    fflush( stdout );
-    break;
-  }
-}
-
 static uint32_t HandleControlStore( uint32_t addy, uint32_t val )
 {
   mmio_routed_store(addy, val);
@@ -735,7 +709,9 @@ static int32_t HandleOtherCSRRead( uint8_t * image, uint16_t csrno )
 	{
 		if( !IsKBHit() ) return -1;
 		return ReadKBByte();
-	}
+	} else {
+          printf("CSR read 0x%04x\n", csrno);
+        }
 	return 0;
 }
 

@@ -1,7 +1,5 @@
 #include "stdio.h"
 
-static int is_eofd;
-
 #if defined(WINDOWS) || defined(WIN32) || defined(_WIN32)
 
 #include <conio.h>
@@ -53,6 +51,7 @@ int IsKBHit() {
 #include <sys/ioctl.h>
 #include <stdio.h>
 
+static int is_eofd;
 int ReadKBByte(void)
 {
 	if( is_eofd ) return 0xffffffff;

@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+void plic_init(void);
 uint32_t plic_load(void *, uint32_t addr);
 void plic_store(void *, uint32_t addr, uint32_t val);
 void plic_raise_irq(int irq, bool need_lock);
