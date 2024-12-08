@@ -11,6 +11,7 @@
 #if defined(WINDOWS) || defined(WIN32) || defined(_WIN32)
 #else
 #include <poll.h>
+#include <elf.h>
 #endif
 
 #include <libfdt.h>
@@ -20,6 +21,7 @@
 
 // #define CNFGOGL
 #define CNFG_IMPLEMENTATION
+#define WITH_COREDUMP
 
 #include "rawdraw_sf.h"
 
@@ -67,6 +69,9 @@ struct MiniRV32IMAState * core;
 
 bool want_exit = false;
 static pthread_mutex_t irq_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+uint32_t kernel_start, kernel_size;
+uint32_t dtb_start, dtb_size;
 
 void hart_raise_irq(int irq, bool need_lock) {
   if (need_lock) pthread_mutex_lock(&irq_mutex);
@@ -145,11 +150,15 @@ void load_kernel(const char *image_file_name) {
   // you should read the 64bit int from 16 bytes into the file, to know the total size
   uint32_t kernel_base = guest_alloc(flen + (512*1024), "KERNEL");
   void *kernel_ptr = cast_guest_ptr(ram_image, kernel_base);
+  printf("loading %s to 0x%x\n", image_file_name, kernel_base);
   if( fread(kernel_ptr, flen, 1, f ) != 1) {
     fprintf( stderr, "Error: Could not load image.\n" );
     exit(-7);
   }
   fclose( f );
+
+  kernel_start = kernel_base;
+  kernel_size = flen;
 }
 
 void load_initrd(const char *initrd_name, uint32_t *addr, uint32_t *size) {
@@ -164,7 +173,7 @@ void load_initrd(const char *initrd_name, uint32_t *addr, uint32_t *size) {
   *addr = guest_alloc(*size, "INITRD");
   void *initrd_host_ptr = cast_guest_ptr(ram_image, *addr);
   printf("loading %s to 0x%x\n", initrd_name, *addr);
-  printf("MEM: 0x%08x -> 0x%08x == INITRD\n", 0x80000000 + *addr, 0x80000000 + *addr + *size - 1);
+  printf("MEM: 0x%08x -> 0x%08x == INITRD\n", *addr, *addr + *size - 1);
   if (fread(initrd_host_ptr, *size, 1, fh) != 1) {
     fprintf( stderr, "Error: Could not load initrd.\n" );
     exit(-1);
@@ -185,19 +194,24 @@ void load_dtb(const char *dtb_name, uint32_t *dtb_addr) {
     fseek( f, 0, SEEK_SET );
     dtb_ptr = guest_alloc(64 * 1024, "DTB");
 
-    printf("MEM: 0x%08x -> 0x%08x == INITRD\n", (uint32_t)(0x80000000 + dtb_ptr), (uint32_t)(0x80000000 + dtb_ptr + dtblen - 1));
-    if( fread( ram_image + dtb_ptr, dtblen, 1, f ) != 1 ) {
+    printf("MEM: 0x%08x -> 0x%08x == DTB\n", (uint32_t)(dtb_ptr), (uint32_t)(dtb_ptr + dtblen - 1));
+    void *host_dtb_ptr = cast_guest_ptr(ram_image, dtb_ptr);
+    if( fread( host_dtb_ptr, dtblen, 1, f ) != 1 ) {
       fprintf( stderr, "Error: Could not open dtb \"%s\"\n", dtb_name );
       exit(-9);
     }
     fclose( f );
+    dtb_size = dtblen;
   } else {
     // Load a default dtb.
     dtb_ptr = guest_alloc(64 * 1024, "DTB");
     void *host_dtb_ptr = cast_guest_ptr(ram_image, dtb_ptr);
     memcpy(host_dtb_ptr, default64mbdtb, sizeof( default64mbdtb ) );
+    dtb_size = sizeof(default64mbdtb);
   }
   *dtb_addr = dtb_ptr;
+
+  dtb_start = dtb_ptr;
 }
 
 void patch_dtb_gfx(void *v_fdt, void **fb_virt_ptr) {
@@ -314,11 +328,175 @@ static void print_internals(void) {
   uint64_t timer = ((uint64_t)core->timerh << 32) | core->timerl;
   uint64_t timermatch = ((uint64_t)core->timermatchh << 32) | core->timermatchl;
   float delta = timermatch - timer;
-  snprintf(buffer, 1024, "timer: 0x%llx\nmatch: 0x%llx\ndelta: %f sec\n", timer, timermatch, delta/1000/1000);
+  snprintf(buffer, 1024, "timer: 0x%lx\nmatch: 0x%lx\ndelta: %f sec\n", timer, timermatch, delta/1000/1000);
   CNFGPenX = 0;
   CNFGPenY = 0;
   CNFGColor( 0xffffff );
   CNFGDrawText(buffer, 5);
+}
+
+typedef struct {
+  const char *name;
+  const void *description;
+  Elf32_Word type;
+} note_entry;
+
+void generate_core_file(struct MiniRV32IMAState *core, uint8_t *ram_image, char *name) {
+  char string_table[] = "\0.strtab\0.kernel\0.dtb\0";
+
+  uint32_t offset = 0;
+
+  uint32_t ehdr_offset = offset;
+  offset = ROUNDUP(offset + sizeof(Elf32_Ehdr), 4);
+
+  uint32_t strtab_offset = offset;
+  offset = ROUNDUP(offset + sizeof(string_table), 4);
+
+  uint32_t regs[32];
+
+  uint32_t reg_offset = offset;
+  offset = ROUNDUP(offset + sizeof(regs), 4);
+
+  uint32_t prstatus[51] = { };
+
+  //for (int i=0; i<51; i++) { prstatus[i] = i; };
+
+  prstatus[0x12] = core->pc;
+  for (int i=1; i<32; i++) {
+    prstatus[0x12 + i] = core->regs[i];
+  }
+
+  note_entry notes_raw[1] = {
+    [0] = {
+      .name = "CORE",
+      .description = &prstatus,
+      .type = NT_PRSTATUS,
+    },
+  };
+
+  uint32_t notes_size = 0;
+
+  Elf32_Nhdr notes[1] = {
+    [0] = {
+      .n_descsz = 0xcc,
+    },
+  };
+
+  for (int i=0; i<1; i++) {
+    if (notes_raw[i].name) notes[i].n_namesz = strlen(notes_raw[i].name);
+    notes[i].n_type = notes_raw[i].type;
+
+    notes_size += sizeof(Elf32_Nhdr) + ROUNDUP(notes[i].n_namesz, 4) + ROUNDUP(notes[i].n_descsz,4);
+  }
+
+  uint32_t notes_offset = offset;
+  offset = ROUNDUP(offset + notes_size, 4);
+
+  Elf32_Phdr phdrs[] = {
+    [0] = {
+      .p_type = PT_LOAD,
+      .p_offset = 1024*1024,
+      .p_vaddr = MINIRV32_RAM_IMAGE_OFFSET,
+      .p_paddr = MINIRV32_RAM_IMAGE_OFFSET,
+      .p_filesz = ram_amt,
+      .p_memsz = ram_amt,
+      .p_flags = PF_X | PF_W | PF_R,
+    },
+    [1] = {
+      .p_type = PT_NOTE,
+      .p_offset = notes_offset,
+      .p_filesz = notes_size,
+      .p_align = 4,
+    },
+  };
+
+  Elf32_Shdr shdrs[] = {
+    [1] = {
+      .sh_name = 1,
+      .sh_type = SHT_STRTAB,
+      .sh_flags = SHF_STRINGS,
+      .sh_addr = 0,
+      .sh_offset = strtab_offset,
+      .sh_size = sizeof(string_table),
+    },
+    [2] = {
+      .sh_name = 9,
+      .sh_type = SHT_PROGBITS,
+      .sh_flags = SHF_ALLOC | SHF_EXECINSTR,
+      .sh_addr = kernel_start,
+      .sh_offset = (kernel_start - MINIRV32_RAM_IMAGE_OFFSET) + (1024*1024),
+      .sh_size = kernel_size,
+    },
+    [3] = {
+      .sh_name = 17,
+      .sh_type = SHT_PROGBITS,
+      .sh_flags = SHF_ALLOC,
+      .sh_addr = dtb_start,
+      .sh_offset = (dtb_start - MINIRV32_RAM_IMAGE_OFFSET) + (1024*1024),
+      .sh_size = dtb_size,
+    },
+  };
+
+  uint32_t phdr_offset = offset;
+  offset = ROUNDUP(offset + sizeof(phdrs), 4);
+
+  uint32_t shdr_offset = offset;
+  offset = ROUNDUP(offset + sizeof(shdrs), 4);
+
+  Elf32_Ehdr ehdr = {
+    .e_ident = { ELFMAG0, ELFMAG1, ELFMAG2, ELFMAG3, ELFCLASS32, ELFDATA2LSB, EV_CURRENT },
+    .e_type = ET_CORE,
+    .e_machine = EM_RISCV,
+    .e_version = EV_CURRENT,
+    .e_phoff = phdr_offset,
+    .e_shoff = shdr_offset,
+    .e_ehsize = sizeof(Elf32_Ehdr),
+    .e_phentsize = sizeof(Elf32_Phdr),
+    .e_phnum = sizeof(phdrs) / sizeof(phdrs[0]),
+    .e_shentsize = sizeof(Elf32_Shdr),
+    .e_shnum = sizeof(shdrs) / sizeof(shdrs[0]),
+    .e_shstrndx = 1,
+  };
+
+  int fd = open("core.elf.temp", O_RDWR | O_CREAT, 0666);
+  assert(fd >= 0);
+
+  int ret = pwrite(fd, &ehdr, sizeof(ehdr), ehdr_offset);
+  assert(ret == sizeof(ehdr));
+
+  ret = pwrite(fd, regs, sizeof(regs), reg_offset);
+  assert(ret == sizeof(regs));
+
+  for (int i=0; i<1; i++) {
+    uint32_t ptr = notes_offset;
+
+    ret = pwrite(fd, &notes[i], sizeof(Elf32_Nhdr), ptr);
+    assert(ret == sizeof(Elf32_Nhdr));
+    ptr += sizeof(Elf32_Nhdr);
+
+    ret = pwrite(fd, notes_raw[i].name, notes[i].n_namesz, ptr);
+    assert(ret == notes[i].n_namesz);
+    ptr += ROUNDUP(notes[i].n_namesz, 4);
+
+    ret = pwrite(fd, notes_raw[i].description, notes[i].n_descsz, ptr);
+    assert(ret == notes[i].n_descsz);
+    ptr += ROUNDUP(notes[i].n_descsz, 4);
+  }
+
+  ret = pwrite(fd, &phdrs, sizeof(phdrs), ehdr.e_phoff);
+  assert(ret == sizeof(phdrs));
+
+  ret = pwrite(fd, &shdrs, sizeof(shdrs), ehdr.e_shoff);
+  assert(ret == sizeof(shdrs));
+
+  ret = pwrite(fd, string_table, sizeof(string_table), strtab_offset);
+  assert(ret == sizeof(string_table));
+
+  ret = pwrite(fd, ram_image, ram_amt, 1024*1024);
+  assert(ret == ram_amt);
+
+  close(fd);
+  rename("core.elf.temp", name);
 }
 
 int main( int argc, char ** argv ) {
@@ -354,7 +532,7 @@ int main( int argc, char ** argv ) {
         case 'l': param_continue = 1; fixed_update = 1; break;
         case 'p': param_continue = 1; do_sleep = 0; break;
         case 's': param_continue = 1; single_step = 1; break;
-        case 'd': param_continue = 1; fail_on_all_faults = 1; break; 
+        case 'd': param_continue = 1; fail_on_all_faults = 1; break;
         case 't': if( ++i < argc ) time_divisor = SimpleReadNumberInt( argv[i], 1 ); break;
         default:
           if( param_continue )
@@ -377,11 +555,11 @@ int main( int argc, char ** argv ) {
 	}
 
         if (enable_gfx) {
-          CNFGSetup("full-rv32ima", 640, 480);
+          CNFGSetup("full-rv32ima", w, h);
         }
 
   ram_image = malloc( ram_amt );
-  printf("MEM: 0x%08x -> 0x%08x == RAM\n", 0x80000000, (0x80000000 + ram_amt)-1);
+  printf("MEM: 0x%08x -> 0x%08x == RAM\n", MINIRV32_RAM_IMAGE_OFFSET, (MINIRV32_RAM_IMAGE_OFFSET + ram_amt)-1);
   if( !ram_image ) {
     fprintf( stderr, "Error: could not allocate system image.\n" );
     return -4;
@@ -447,6 +625,11 @@ restart:
     pthread_mutex_lock(&irq_mutex);
     int ret = MiniRV32IMAStep( core, ram_image, 0, elapsedUs, instrs_per_flip ); // Execute upto 1024 cycles before breaking out.
     pthread_mutex_unlock(&irq_mutex);
+
+    if (core->pc == 0) {
+      break;
+    }
+
     switch( ret ) {
     case 0: break;
     case 1:
@@ -506,6 +689,8 @@ restart:
     perror("cant save coredump");
   }
   close(fd);
+
+  generate_core_file(core, ram_image, "exit.elf");
 #endif
 
   free(ram_image);
@@ -700,7 +885,9 @@ static void HandleOtherCSRWrite( uint8_t * image, uint16_t csrno, uint32_t value
 	else if( csrno == 0x139 )
 	{
 		putchar( value ); fflush( stdout );
-	}
+	} else {
+          printf("CSR write 0x%04x\n", csrno);
+        }
 }
 
 static int32_t HandleOtherCSRRead( uint8_t * image, uint16_t csrno )
@@ -755,6 +942,7 @@ static void DumpState( struct MiniRV32IMAState * core, uint8_t * ram_image )
 	else
 		printf( "[xxxxxxxxxx] " );
         printf("MIP:%08x MIE:%08x ", core->mip, core->mie);
+        printf("MCAUSE:%08x ", core->mcause);
 	uint32_t * regs = core->regs;
 	printf( "Z:%08x ra:%08x sp:%08x gp:%08x tp:%08x t0:%08x t1:%08x t2:%08x s0:%08x s1:%08x a0:%08x a1:%08x a2:%08x a3:%08x a4:%08x a5:%08x ",
 		regs[0], regs[1], regs[2], regs[3], regs[4], regs[5], regs[6], regs[7],

@@ -53,7 +53,6 @@ static void DumpState( struct MiniRV32IMAState * core, uint8_t * ram_image );
 int main( int argc, char ** argv )
 {
 	int i;
-        int image_size = 0;
 	long long instct = -1;
 	int show_help = 0;
 	int time_divisor = 1;
@@ -136,7 +135,6 @@ restart:
 			return -7;
 		}
 		fclose( f );
-                image_size = flen;
 
 		if( dtb_file_name )
 		{

@@ -299,9 +299,17 @@ void HandleButton( int x, int y, int button, int bDown ) {
   send_event(ctx, EV_SYN, 0, 0);
 }
 
+static const int queue_sizes[] = {
+  [0] = 4096,
+  [1] = 64,
+};
+
 static const virtio_device_type virtio_input_type = {
   .device_type = 18,
   .queue_count = 2,
+  .queue_sizes = queue_sizes,
+  .feature_array = NULL,
+  .feature_array_length = 0,
   .config_load = virtio_input_config_load,
   .config_store = virtio_input_config_store,
   .process_command = virtio_input_process_command,

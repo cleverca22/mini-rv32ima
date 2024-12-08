@@ -24,4 +24,5 @@ stdenv.mkDerivation {
   buildInputs = [ dtc ]
     ++ lib.optionals stdenv.hostPlatform.isLinux [ xorg.libX11 alsa-lib ]
     ++ lib.optionals stdenv.hostPlatform.isWindows [ linuxHeaders windows.mingw_w64_pthreads ];
+  enableParallelBuilding = true;
 }

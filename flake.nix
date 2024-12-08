@@ -19,6 +19,7 @@
       "riscv32-nommu-musl" = "x86_64-linux";
       "x86_64-windows" = "x86_64-linux";
     };
+    pkgs_raw = import nixpkgs { system = "x86_64-linux"; };
     pkgs_ = import nixpkgs {
       system = hostLut.${system};
       overlays = [ overlay (import ./overlay.nix) ];
@@ -37,7 +38,7 @@
       os = pkgs.callPackage ./os.nix { extraModules = extra; };
     in
       pkgs.writeShellScriptBin "dotest" ''
-        ${pkgs.mini-rv32ima.override { inherit http; }}/bin/full-rv32ima -f ${os.toplevel}/Image -i ${os.toplevel}/initrd
+        ${pkgs.mini-rv32ima.override { inherit http; }}/bin/full-rv32ima -f ${os.toplevel}/Image -i ${os.toplevel}/initrd "$@"
       '';
     tests = {
       default = mkDoTest false [];
@@ -45,7 +46,7 @@
       doom = mkDoTest false [ ./configuration-fbdoom.nix ];
       doom-http = mkDoTest true [ ./configuration-fbdoom.nix ];
       windows-test = let
-        os = self.packets.${system}.os;
+        os = (pkgs_.callPackage ./os.nix { extraModules = []; }).toplevel;
       in pkgs.writeShellScriptBin "windows-test" ''
         export PATH=$PATH:${pkgs.wine64}/bin/
         ls -lh ${self.packages.${system}.windows-rv32ima}/bin/
@@ -55,6 +56,14 @@
   in {
     packages = tests // (import ./packages.nix pkgs);
     devShells = {
+      default = pkgs.stdenv.mkDerivation {
+        name = "shell";
+        buildInputs = [
+          (pkgs.enableDebugging pkgs.pkgsCross.riscv32.buildPackages.gdb)
+          pkgs.pkgsCross.riscv32.buildPackages.binutils
+          pkgs_raw.qemu
+        ];
+      };
       kernel = pkgs.pkgsCross.riscv32-nommu.linux.overrideDerivation (drv: {
         nativeBuildInputs = drv.nativeBuildInputs ++ (with pkgs; [ ncurses pkg-config ]);
         makeFlags = drv.makeFlags ++ [ "O=rv32" ];

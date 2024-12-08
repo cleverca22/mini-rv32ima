@@ -26,11 +26,13 @@ let
       CONFIG_HUSH y
       CONFIG_HUSH_EXPORT y
       CONFIG_HUSH_INTERACTIVE y
+      CONFIG_CHVT y
       CONFIG_INIT y
       CONFIG_LN y
       CONFIG_LS y
       CONFIG_MKDIR y
       CONFIG_MKNOD y
+      CONFIG_MKPASSWD y
       CONFIG_MKTEMP n
       CONFIG_MOUNT y
       CONFIG_MV y

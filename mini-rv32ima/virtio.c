@@ -33,11 +33,12 @@ struct virtio_device *virtio_create(void *ram_image, const virtio_device_type *t
 }
 
 void hexdump_ram(void *ram_image, uint32_t addr, uint32_t len) {
+  uint8_t *buffer = cast_guest_ptr(ram_image, addr);
   for (int i=0; i<len; i++) {
     uint32_t addy = addr + i;
     if ((i % 16) == 0) printf("0x%x: ", addy);
 
-    uint8_t t = *((uint8_t*)(ram_image + (addy - 0x80000000)));
+    uint8_t t = buffer[i];
     printf("%02x ", t);
     if ((i % 16) == 15) printf("\n");
   }
@@ -45,7 +46,7 @@ void hexdump_ram(void *ram_image, uint32_t addr, uint32_t len) {
 }
 
 static void virtio_dump_desc(struct virtio_device *dev, const virtio_desc *desc) {
-  printf("\taddr: 0x%llx\n", desc->addr);
+  printf("\taddr: 0x%lx\n", desc->addr);
   printf("\tlen: %d\n", desc->len);
   printf("\tflags: 0x%x\n", desc->flags);
   if (desc->flags & 1) puts("\t\tVIRTQ_DESC_F_NEXT");
@@ -211,7 +212,7 @@ void virtio_mmio_store(void *state, uint32_t offset, uint32_t val) {
   case 0x20: // DriverFeatures
     switch (dev->DriverFeaturesSel) {
     case 1:
-      printf("feature high set to 0x%x\n", val);
+      //printf("feature high set to 0x%x\n", val);
       break;
     }
     break;
@@ -246,7 +247,7 @@ void virtio_mmio_store(void *state, uint32_t offset, uint32_t val) {
   case 0x70:
     dev->Status = val;
     if (val == 0) {
-      printf("virtio%d reset\n", dev->index);
+      //printf("virtio%d reset\n", dev->index);
       dev->InterruptStatus = 0;
       for (int queue=0; queue < dev->queue_count; queue++) {
         dev->queues[queue].read_ptr = 0;

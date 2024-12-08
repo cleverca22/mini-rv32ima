@@ -48,8 +48,10 @@ int IsKBHit() {
   return ret;
 }
 #else
-#include <sys/ioctl.h>
+
 #include <stdio.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 static int is_eofd;
 int ReadKBByte(void)
